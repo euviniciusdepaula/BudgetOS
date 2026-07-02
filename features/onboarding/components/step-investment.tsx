@@ -27,7 +27,7 @@ export function StepInvestment({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const { data: vault } = useVault();
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, OutputValues>({
     resolver: zodResolver(schema),
     defaultValues: { goal: "" },
   });

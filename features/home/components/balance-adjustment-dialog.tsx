@@ -59,7 +59,7 @@ export function BalanceAdjustmentDialog({
 }: BalanceAdjustmentDialogProps) {
   const adjust = useBalanceAdjustment();
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, OutputValues>({
     resolver: zodResolver(schema),
     defaultValues: { type: "entry", amount: "", description: "" },
   });

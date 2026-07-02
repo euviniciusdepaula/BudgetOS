@@ -55,7 +55,7 @@ export function ExpenseDialog({
 }: ExpenseDialogProps) {
   const registerExpense = useRegisterExpense();
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, OutputValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       amount: "",

@@ -48,7 +48,7 @@ export function CategoryDialog({
 }: CategoryDialogProps) {
   const { create, update } = useCategoryMutations();
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, OutputValues>({
     resolver: zodResolver(schema),
     defaultValues: { emoji: "", name: "", default_limit: "" },
   });

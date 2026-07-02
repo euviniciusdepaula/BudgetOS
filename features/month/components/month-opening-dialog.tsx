@@ -49,7 +49,7 @@ export function MonthOpeningDialog() {
     queryFn: () => monthService.getPreviousMonthBalance(),
   });
 
-  const form = useForm<OpeningForm>({
+  const form = useForm<OpeningForm, unknown, OpeningOutput>({
     resolver: zodResolver(openingSchema),
     defaultValues: { startingBalance: "0", salary: "0", extraIncome: "0" },
   });

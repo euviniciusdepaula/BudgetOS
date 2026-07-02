@@ -51,7 +51,7 @@ export function FixedExpenseDialog({
 }: FixedExpenseDialogProps) {
   const { create, update } = useFixedExpenseMutations();
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, OutputValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", amount: "", due_day: undefined, active: true },
   });
