@@ -123,6 +123,51 @@ function TransactionRow({
   );
 }
 
+function getRelativePeriodLabel(dateStr: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const targetDate = new Date(year, month - 1, day);
+
+  if (targetDate.getTime() === today.getTime()) {
+    return "Hoje";
+  }
+  if (targetDate.getTime() === yesterday.getTime()) {
+    return "Ontem";
+  }
+  if (targetDate >= startOfWeek) {
+    return "Esta semana";
+  }
+  if (targetDate >= startOfMonth) {
+    return "Este mês";
+  }
+
+  const monthsBR = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+  return `${monthsBR[targetDate.getMonth()]} de ${targetDate.getFullYear()}`;
+}
+
 export function HistoryView() {
   const { data: month } = useCurrentMonth();
   const { data: categories } = useCategories();
@@ -157,13 +202,14 @@ export function HistoryView() {
   );
 
   const groups = useMemo(() => {
-    const byDate = new Map<string, TransactionWithCategory[]>();
+    const byPeriod = new Map<string, TransactionWithCategory[]>();
     for (const t of transactions ?? []) {
-      const list = byDate.get(t.date) ?? [];
+      const label = getRelativePeriodLabel(t.date);
+      const list = byPeriod.get(label) ?? [];
       list.push(t);
-      byDate.set(t.date, list);
+      byPeriod.set(label, list);
     }
-    return Array.from(byDate.entries());
+    return Array.from(byPeriod.entries());
   }, [transactions]);
 
   return (
@@ -239,10 +285,10 @@ export function HistoryView() {
         />
       ) : (
         <div className="space-y-6">
-          {groups.map(([date, items]) => (
-            <section key={date}>
-              <h3 className="mb-2 text-xs font-medium text-muted-foreground uppercase">
-                {formatDate(`${date}T00:00:00`)}
+          {groups.map(([periodLabel, items]) => (
+            <section key={periodLabel}>
+              <h3 className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {periodLabel}
               </h3>
               <div className="divide-y rounded-xl border bg-card">
                 {items.map((transaction) => (

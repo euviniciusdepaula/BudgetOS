@@ -3,8 +3,8 @@ import {
   Lightbulb,
   Repeat,
   Settings,
+  Sparkles,
   Tags,
-  Target,
   TrendingUp,
   Wallet,
   type LucideIcon,
@@ -22,7 +22,8 @@ export const navigation: NavItem[] = [
   { label: "Categorias", href: "/categorias", icon: Tags },
   { label: "Gastos Fixos", href: "/gastos-fixos", icon: Repeat },
   { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
-  { label: "Objetivos", href: "/objetivos", icon: Target },
+  { label: "Simulações", href: "/simulacoes", icon: Sparkles },
   { label: "Insights", href: "/insights", icon: Lightbulb },
   { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
+
