@@ -29,9 +29,12 @@ export interface AssistantPayload {
 }
 
 export interface AssistantParsedOutput {
-  action: AssistantAction;
-  payload: AssistantPayload;
+  actions: {
+    action: AssistantAction;
+    payload: AssistantPayload;
+  }[];
 }
+
 
 export interface AssistantReplyData {
   categories?: Category[];

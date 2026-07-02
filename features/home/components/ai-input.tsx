@@ -75,9 +75,8 @@ export function AiInput({ month }: { month: Month }) {
         });
         setSelectedCategoryId("");
         setPickerOpen(true);
-      } else {
-        setReply(result.content);
       }
+      setReply(result.content);
     } catch {
       // Erro é tratado pelo onError no hook
     }

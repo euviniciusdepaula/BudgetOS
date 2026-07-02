@@ -2,6 +2,7 @@ import { buildSystemPrompt, type AssistantPromptContext } from "./AssistantPromp
 import { ASSISTANT_JSON_SCHEMA } from "./AssistantSchema";
 import type {
   AssistantAction,
+  AssistantPayload,
   AssistantParsedOutput,
   AssistantReplyData,
   AssistantServiceReply,
@@ -179,236 +180,258 @@ export const AssistantService = {
     }
 
     const aiOutput: AssistantParsedOutput = JSON.parse(parsedRaw);
-    const { action, payload } = aiOutput;
+    const { actions } = aiOutput;
+
+    if (!actions || actions.length === 0) {
+      return {
+        content: "Desculpe, não identifiquei nenhuma ação para processar.",
+        actionExecuted: "unknown",
+        payload: { reason: "no_actions" },
+      };
+    }
 
     let content = "";
-    let actionExecuted: AssistantAction = action;
+    let actionExecuted: AssistantAction = "unknown";
+    let lastPayload: AssistantPayload = {};
     let extraData: AssistantReplyData | null = null;
 
-    // 4. Executar as intenções e construir resposta baseada em dados reais
-    try {
-      if (action === "create_transaction") {
-        const amount = payload.amount;
-        if (!amount || amount <= 0) {
-          throw new Error("Valor do gasto inválido.");
-        }
+    const executedDescriptions: string[] = [];
+    const pendingActions: { action: AssistantAction; payload: AssistantPayload }[] = [];
+    const localPaidExpenseIds = new Set(paidExpenseIds);
 
-        const matched = matchCategory(payload.category, budgets);
-        if (!matched) {
-          // Categoria ambígua ou não encontrada -> fallback para unknown
-          actionExecuted = "unknown";
-          payload.reason = "category_not_identified";
-          content = "Não identifiquei uma categoria correspondente para esse gasto. Por favor, selecione uma das opções abaixo para registrar.";
-          extraData = {
-            categories: budgets.map((b) => b.category),
-            amount,
-            description: payload.description || message,
-            date: payload.date || new Date().toISOString().split("T")[0],
-          };
-        } else {
-          // Registrar transação na Finance Engine
-          const tx = await transactionService.registerExpense({
+    // 4. Executar as intenções sequencialmente
+    try {
+      for (const item of actions) {
+        const { action, payload } = item;
+
+        // Atualizar o mês em memória buscando do banco a cada passo para garantir saldos corretos
+        const currentMonth = await monthRepository.findByYearMonth(month.year, month.month);
+        if (!currentMonth) {
+          throw new Error("Mês não encontrado durante o processamento.");
+        }
+        month = currentMonth;
+
+        try {
+          if (action === "create_transaction") {
+            const amount = payload.amount;
+          if (!amount || amount <= 0) {
+            throw new Error("Valor do gasto inválido.");
+          }
+
+          const matched = matchCategory(payload.category, budgets);
+          if (!matched) {
+            pendingActions.push(item);
+          } else {
+            await transactionService.registerExpense({
+              month,
+              amount,
+              categoryId: matched.category_id,
+              description: payload.description || message,
+              date: payload.date || undefined,
+              source: "ai",
+            });
+            executedDescriptions.push(
+              `- ${matched.category.emoji} **${matched.category.name}**: ${formatCurrency(amount)} (${payload.description || "Gasto"})`
+            );
+            actionExecuted = "create_transaction";
+            lastPayload = payload;
+          }
+        } else if (action === "create_income") {
+          const amount = payload.amount;
+          if (!amount || amount <= 0) {
+            throw new Error("Valor da receita inválido.");
+          }
+
+          await transactionService.registerIncome({
             month,
             amount,
-            categoryId: matched.category_id,
             description: payload.description || message,
             date: payload.date || undefined,
             source: "ai",
           });
+          executedDescriptions.push(
+            `- **Receita**: ${formatCurrency(amount)} (${payload.description || "Receita"})`
+          );
+          actionExecuted = "create_income";
+          lastPayload = payload;
+        } else if (action === "pay_fixed_expense") {
+          const matched = matchFixedExpense(payload.expense_name, activeFixedExpenses);
 
-          // Buscar dados atualizados do mês
-          const updatedMonths = await monthRepository.list();
-          const updatedMonth = updatedMonths.find((m) => m.id === currentMonthId)!;
-          const updatedBudgets = await budgetRepository.listByMonth(currentMonthId);
-          const updatedBudget = updatedBudgets.find(
-            (b) => b.category_id === matched.category_id
-          )!;
-
-          content = `Registro realizado.
-Categoria:
-${matched.category.emoji} ${matched.category.name}
-Valor:
-${formatCurrency(amount)}
-Restante na categoria:
-${formatCurrency(Number(updatedBudget.remaining))}
-Disponível para gastar:
-${formatCurrency(Number(updatedMonth.available_balance))}`;
-
-          extraData = { transaction: tx };
-        }
-      } else if (action === "create_income") {
-        const amount = payload.amount;
-        if (!amount || amount <= 0) {
-          throw new Error("Valor da receita inválido.");
-        }
-
-        const tx = await transactionService.registerIncome({
-          month,
-          amount,
-          description: payload.description || message,
-          date: payload.date || undefined,
-          source: "ai",
-        });
-
-        const updatedMonths = await monthRepository.list();
-        const updatedMonth = updatedMonths.find((m) => m.id === currentMonthId)!;
-
-        content = `Receita registrada com sucesso!
-Valor:
-${formatCurrency(amount)}
-Disponível para gastar:
-${formatCurrency(Number(updatedMonth.available_balance))}`;
-
-        extraData = { transaction: tx };
-      } else if (action === "pay_fixed_expense") {
-        const matched = matchFixedExpense(payload.expense_name, activeFixedExpenses);
-
-        if (!matched) {
-          content = `Não encontrei nenhum gasto fixo pendente correspondente a "${payload.expense_name}".`;
-          actionExecuted = "unknown";
-          payload.reason = "fixed_expense_not_found";
-        } else {
-          const isAlreadyPaid = paidExpenseIds.has(matched.id);
-          if (isAlreadyPaid) {
-            content = `O gasto fixo "${matched.name}" já está marcado como pago neste mês.`;
+          if (!matched) {
+            pendingActions.push(item);
           } else {
-            await fixedExpenseService.setPaid(month, matched, true);
-
-            const updatedMonths = await monthRepository.list();
-            const updatedMonth = updatedMonths.find((m) => m.id === currentMonthId)!;
-
-            content = `Marquei o gasto fixo "${matched.name}" (${formatCurrency(
-              Number(matched.amount)
-            )}) como pago!
-Saldo disponível inalterado (já estava reservado):
-${formatCurrency(Number(updatedMonth.available_balance))}`;
+            const isAlreadyPaid = localPaidExpenseIds.has(matched.id);
+            if (isAlreadyPaid) {
+              executedDescriptions.push(
+                `- **Gasto Fixo** "${matched.name}" já está marcado como pago.`
+              );
+            } else {
+              await fixedExpenseService.setPaid(month, matched, true);
+              localPaidExpenseIds.add(matched.id);
+              executedDescriptions.push(
+                `- **Gasto Fixo** "${matched.name}" pago: ${formatCurrency(Number(matched.amount))}`
+              );
+              actionExecuted = "pay_fixed_expense";
+              lastPayload = payload;
+            }
           }
-          extraData = { fixedExpense: matched };
-        }
-      } else if (action === "balance_adjustment") {
-        const amount = payload.amount;
-        const type = payload.type;
-        if (!amount || !type) {
-          throw new Error("Dados de ajuste de saldo inválidos.");
-        }
+        } else if (action === "balance_adjustment") {
+          const amount = payload.amount;
+          const type = payload.type;
+          if (!amount || !type) {
+            throw new Error("Dados de ajuste de saldo inválidos.");
+          }
 
-        const adj = await balanceService.apply({
-          month,
-          type,
-          amount,
-          description: payload.description || message,
-        });
+          await balanceService.apply({
+            month,
+            type,
+            amount,
+            description: payload.description || message,
+          });
 
-        const updatedMonths = await monthRepository.list();
-        const updatedMonth = updatedMonths.find((m) => m.id === currentMonthId)!;
-
-        const typeLabels: Record<string, string> = {
-          entry: "Entrada",
-          exit: "Saída",
-          correction: "Correção de Saldo",
-          transfer: "Transferência",
-        };
-
-        content = `Ajuste de saldo (${typeLabels[type]}) realizado com sucesso!
-Valor:
-${formatCurrency(amount)}
-Novo Saldo Bancário:
-${formatCurrency(Number(updatedMonth.bank_balance))}
-Disponível para gastar:
-${formatCurrency(Number(updatedMonth.available_balance))}`;
-
-        extraData = { adjustment: adj };
-      } else if (action === "question") {
-        const intent = payload.intent;
-        if (intent === "available_balance") {
-          content = `Seu dinheiro disponível para gastar hoje é de ${formatCurrency(
-            Number(month.available_balance)
-          )}.
-(Saldo bancário: ${formatCurrency(
-            Number(month.bank_balance)
-          )} - Reservas fixas: ${formatCurrency(
-            Number(month.reserved_fixed_expenses)
-          )} - Meta de investimento: ${formatCurrency(
-            Number(month.reserved_investment)
-          )})`;
-        } else if (intent === "category_remaining") {
-          const matched = matchCategory(payload.category, budgets);
-          if (matched) {
-            content = `Você ainda tem ${formatCurrency(
-              Number(matched.remaining)
-            )} disponíveis na categoria ${matched.category.emoji} ${
-              matched.category.name
-            } (Limite: ${formatCurrency(
-              Number(matched.current_limit)
-            )} | Gasto: ${formatCurrency(Number(matched.spent))})`;
-          } else {
-            const categoriesStatus = budgets
+          const typeLabels: Record<string, string> = {
+            entry: "Entrada",
+            exit: "Saída",
+            correction: "Correção de Saldo",
+            transfer: "Transferência",
+          };
+          executedDescriptions.push(
+            `- **Ajuste de Saldo** (${typeLabels[type]}): ${formatCurrency(amount)}`
+          );
+          actionExecuted = "balance_adjustment";
+          lastPayload = payload;
+        } else if (action === "question") {
+          const intent = payload.intent;
+          let questionReply = "";
+          if (intent === "available_balance") {
+            questionReply = `Seu dinheiro disponível para gastar hoje é de ${formatCurrency(
+              Number(month.available_balance)
+            )}. (Saldo bancário: ${formatCurrency(
+              Number(month.bank_balance)
+            )} - Reservas fixas: ${formatCurrency(
+              Number(month.reserved_fixed_expenses)
+            )} - Meta de investimento: ${formatCurrency(
+              Number(month.reserved_investment)
+            )})`;
+          } else if (intent === "category_remaining") {
+            const matched = matchCategory(payload.category, budgets);
+            if (matched) {
+              questionReply = `Você ainda tem ${formatCurrency(
+                Number(matched.remaining)
+              )} disponíveis na categoria ${matched.category.emoji} ${
+                matched.category.name
+              } (Limite: ${formatCurrency(
+                Number(matched.current_limit)
+              )} | Gasto: ${formatCurrency(Number(matched.spent))})`;
+            } else {
+              const categoriesStatus = budgets
+                .map(
+                  (b) =>
+                    `${b.category.emoji} ${b.category.name}: ${formatCurrency(
+                      Number(b.remaining)
+                    )} restantes`
+                )
+                .join("\n");
+              questionReply = `Aqui está o saldo restante das suas categorias:\n${categoriesStatus}`;
+            }
+          } else if (intent === "investment_total") {
+            questionReply = `Você aportou um total de ${formatCurrency(
+              investmentTotal
+            )} em investimentos este mês. A sua meta mensal definida é de ${formatCurrency(
+              Number(month.reserved_investment)
+            )}.`;
+          } else if (intent === "fixed_expenses") {
+            const unpaid = activeFixedExpenses.filter((f) => !localPaidExpenseIds.has(f.id));
+            const totalUnpaid = unpaid.reduce((sum, f) => sum + Number(f.amount), 0);
+            questionReply = `Você possui ${unpaid.length} gastos fixos pendentes de pagamento neste mês, totalizando ${formatCurrency(
+              totalUnpaid
+            )}.\n${unpaid
+              .map((f) => `- ${f.name} (${formatCurrency(Number(f.amount))})`)
+              .join("\n")}`;
+          } else if (intent === "salary") {
+            questionReply = `Seu salário cadastrado para este mês é de ${formatCurrency(
+              Number(month.salary)
+            )} (Receitas extras: ${formatCurrency(Number(month.extra_income))})`;
+          } else if (intent === "monthly_summary") {
+            questionReply = `Resumo Financeiro do Mês:\n- Saldo Bancário: ${formatCurrency(Number(month.bank_balance))}\n- Disponível para Gastar: ${formatCurrency(Number(month.available_balance))}\n- Reservado para Gastos Fixos: ${formatCurrency(Number(month.reserved_fixed_expenses))}\n- Meta de Investimento: ${formatCurrency(Number(month.reserved_investment))}\n- Aportes Realizados: ${formatCurrency(investmentTotal)}`;
+          } else if (intent === "category_summary") {
+            const summary = budgets
               .map(
                 (b) =>
-                  `${b.category.emoji} ${b.category.name}: ${formatCurrency(
-                    Number(b.remaining)
-                  )} restantes`
+                  `- ${b.category.emoji} ${b.category.name}: Gasto ${formatCurrency(
+                    Number(b.spent)
+                  )} de ${formatCurrency(Number(b.current_limit))}`
               )
               .join("\n");
-            content = `Aqui está o saldo restante das suas categorias:\n${categoriesStatus}`;
+            questionReply = `Resumo de gastos por categoria:\n${summary}`;
+          } else {
+            questionReply = `Não entendi qual informação sobre o orçamento você deseja consultar. Você pode perguntar sobre "saldo disponível", "restante em alimentação", "investimentos" ou "gastos fixos".`;
           }
-        } else if (intent === "investment_total") {
-          content = `Você aportou um total de ${formatCurrency(
-            investmentTotal
-          )} em investimentos este mês. A sua meta mensal definida é de ${formatCurrency(
-            Number(month.reserved_investment)
-          )}.`;
-        } else if (intent === "fixed_expenses") {
-          const unpaid = activeFixedExpenses.filter((f) => !paidExpenseIds.has(f.id));
-          const totalUnpaid = unpaid.reduce((sum, f) => sum + Number(f.amount), 0);
-          content = `Você possui ${unpaid.length} gastos fixos pendentes de pagamento neste mês, totalizando ${formatCurrency(
-            totalUnpaid
-          )}.\n${unpaid
-            .map((f) => `- ${f.name} (${formatCurrency(Number(f.amount))})`)
-            .join("\n")}`;
-        } else if (intent === "salary") {
-          content = `Seu salário cadastrado para este mês é de ${formatCurrency(
-            Number(month.salary)
-          )} (Receitas extras: ${formatCurrency(Number(month.extra_income))})`;
-        } else if (intent === "monthly_summary") {
-          content = `Resumo Financeiro do Mês:
-- Saldo Bancário: ${formatCurrency(Number(month.bank_balance))}
-- Disponível para Gastar: ${formatCurrency(Number(month.available_balance))}
-- Reservado para Gastos Fixos: ${formatCurrency(Number(month.reserved_fixed_expenses))}
-- Meta de Investimento: ${formatCurrency(Number(month.reserved_investment))}
-- Aportes Realizados: ${formatCurrency(investmentTotal)}`;
-        } else if (intent === "category_summary") {
-          const summary = budgets
-            .map(
-              (b) =>
-                `- ${b.category.emoji} ${b.category.name}: Gasto ${formatCurrency(
-                  Number(b.spent)
-                )} de ${formatCurrency(Number(b.current_limit))}`
-            )
-            .join("\n");
-          content = `Resumo de gastos por categoria:\n${summary}`;
+          executedDescriptions.push(questionReply);
+          actionExecuted = "question";
+          lastPayload = payload;
+        } else if (action === "simulation") {
+          executedDescriptions.push(
+            `- **Simulação** de "${payload.description || "Gasto"}" de ${formatCurrency(payload.amount || 0)} na categoria "${payload.category || "Geral"}". (Simulações estarão disponíveis nas próximas versões)`
+          );
+          actionExecuted = "simulation";
+          lastPayload = payload;
         } else {
-          content = `Não entendi qual informação sobre o orçamento você deseja consultar. Você pode perguntar sobre "saldo disponível", "restante em alimentação", "investimentos" ou "gastos fixos".`;
+          pendingActions.push(item);
         }
-      } else if (action === "simulation") {
-        content = `Simulação de lançamento recebida: "${
-          payload.description || "Gasto"
-        }" de ${formatCurrency(payload.amount || 0)} na categoria "${
-          payload.category || "Geral"
-        }". Esta funcionalidade de simulações e projeções será ativada nas próximas versões.`;
-      } else {
-        // Unknown ou erro de interpretação
-        actionExecuted = "unknown";
-        content = `Desculpe, não consegui compreender a sua mensagem ou identificar a ação desejada. Tente falar algo como: "Pedi um iFood de 58 reais", "Recebi um pix de 150", ou "Paguei o aluguel".`;
+      } catch (err) {
+        console.error("Erro ao processar ação sequencial:", err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        executedDescriptions.push(`- **Erro** ao registrar lançamento: ${payload.description || "Lançamento"} (${errMsg})`);
       }
-    } catch (e) {
-      console.error(e);
+    }
+  } catch (e) {
+    console.error(e);
       const message = e instanceof Error ? e.message : String(e);
-      content = `Ocorreu um erro ao processar a operação financeira: ${message}`;
+      content = `Ocorreu um erro no loop de processamento do assistente: ${message}`;
       actionExecuted = "unknown";
     }
 
-    // 5. Persistir conversa em ai_conversations
+    // Refresh month state to show correct final available balance
+    const finalMonth = await monthRepository.findByYearMonth(month.year, month.month);
+    const finalAvailableBalance = finalMonth ? Number(finalMonth.available_balance) : Number(month.available_balance);
+
+    // 5. Construir resposta em texto consolidada
+    const contentParts: string[] = [];
+
+    if (executedDescriptions.length > 0) {
+      contentParts.push("**Lançamentos registrados com sucesso:**");
+      contentParts.push(executedDescriptions.join("\n"));
+    }
+
+    if (pendingActions.length > 0) {
+      contentParts.push("\n**Preciso de confirmação para o seguinte lançamento:**");
+      const firstPending = pendingActions[0];
+      contentParts.push(
+        `- **Valor**: ${formatCurrency(firstPending.payload.amount || 0)} (${firstPending.payload.description || "Sem descrição"})`
+      );
+      contentParts.push("\nEscolha a categoria correspondente abaixo para concluir.");
+
+      actionExecuted = "unknown";
+      lastPayload = {
+        ...firstPending.payload,
+        reason: "category_not_identified",
+      };
+      extraData = {
+        categories: budgets.map((b) => b.category),
+        amount: firstPending.payload.amount || 0,
+        description: firstPending.payload.description || message,
+        date: firstPending.payload.date || new Date().toISOString().split("T")[0],
+      };
+    } else {
+      if (executedDescriptions.length > 0) {
+        contentParts.push(`\n**Novo Saldo Disponível**: ${formatCurrency(finalAvailableBalance)}`);
+      }
+    }
+
+    content = contentParts.join("\n");
+
+    // 6. Persistir conversa em ai_conversations
     await Promise.all([
       aiConversationRepository.append({
         month_id: currentMonthId,
@@ -420,7 +443,7 @@ ${formatCurrency(Number(updatedMonth.available_balance))}`;
         role: "assistant",
         content,
         metadata: JSON.parse(
-          JSON.stringify({ action: actionExecuted, payload, extraData })
+          JSON.stringify({ action: actionExecuted, payload: lastPayload, extraData })
         ) as Json,
       }),
     ]);
@@ -428,7 +451,7 @@ ${formatCurrency(Number(updatedMonth.available_balance))}`;
     return {
       content,
       actionExecuted,
-      payload,
+      payload: lastPayload,
       data: extraData,
     };
   },
