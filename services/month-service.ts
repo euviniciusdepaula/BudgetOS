@@ -1,4 +1,4 @@
-import { computeMonthOpening } from "@/lib/finance";
+import { computeMonthOpening, applyInvestmentGoalChange } from "@/lib/finance";
 import { currentYearMonth, type YearMonth } from "@/lib/dates";
 import type { Month } from "@/types/domain";
 import { budgetRepository } from "./repositories/budget-repository";
@@ -73,4 +73,18 @@ export const monthService = {
 
     return month;
   },
+
+  /** Atualiza o valor reservado para investimento e o disponível do mês atual caso a meta mude. */
+  async updateCurrentMonthInvestmentGoal(newGoal: number): Promise<void> {
+    const current = await this.getCurrentMonth();
+    if (!current || current.closed) return;
+
+    const updatedBalances = applyInvestmentGoalChange(current, newGoal);
+
+    await monthRepository.update(current.id, {
+      reserved_investment: updatedBalances.reserved_investment,
+      available_balance: updatedBalances.available_balance,
+    });
+  },
 };
+

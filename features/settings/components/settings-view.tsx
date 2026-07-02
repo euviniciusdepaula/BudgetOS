@@ -19,7 +19,8 @@ import { useVault } from "@/hooks/use-vault";
 import { queryKeys } from "@/lib/query-keys";
 import { clearVaultSession } from "@/lib/vault-session";
 import { vaultRepository } from "@/services/repositories/vault-repository";
-import { formatDate } from "@/utils/format";
+import { monthService } from "@/services/month-service";
+import { formatDate, parseCurrencyInput } from "@/utils/format";
 
 export function SettingsView() {
   const queryClient = useQueryClient();
@@ -33,14 +34,19 @@ export function SettingsView() {
   const saveGoal = useMutation({
     mutationFn: async () => {
       if (!vault) throw new Error("Vault não encontrado.");
-      const value = Number(goal);
+      const value = parseCurrencyInput(goal);
       if (Number.isNaN(value) || value < 0) {
         throw new Error("Informe um valor válido.");
       }
-      await vaultRepository.updateInvestmentGoal(vault.id, value);
+      await Promise.all([
+        vaultRepository.updateInvestmentGoal(vault.id, value),
+        monthService.updateCurrentMonthInvestmentGoal(value),
+      ]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vault });
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentMonth });
+      queryClient.invalidateQueries({ queryKey: queryKeys.months });
       toast.success("Meta de investimento atualizada.");
     },
     onError: (error) => toast.error(error.message),
@@ -87,8 +93,7 @@ export function SettingsView() {
             </span>
             <CardTitle>Meta de investimento</CardTitle>
             <CardDescription>
-              Reservada todo mês antes do cálculo do disponível. Vale a partir
-              do próximo mês aberto.
+              Reservada todo mês antes do cálculo do disponível. Vale também para o mês atual.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -103,9 +108,9 @@ export function SettingsView() {
                 <Label htmlFor="settings-goal">Valor mensal</Label>
                 <Input
                   id="settings-goal"
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                 />
@@ -120,3 +125,4 @@ export function SettingsView() {
     </div>
   );
 }
+

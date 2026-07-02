@@ -150,3 +150,25 @@ export function applyAdjustment(
 ): MonthBalances {
   return rebalance(month, { bank_balance: adjustmentDelta(type, amount) });
 }
+
+/**
+ * Alteração da meta de investimento em mês já aberto:
+ * substitui o reserved_investment pelo novo valor e recalcula o disponível.
+ */
+export function applyInvestmentGoalChange(
+  month: Pick<Month, keyof MonthBalances>,
+  newGoal: number
+): MonthBalances {
+  const reserved_investment = round2(newGoal);
+  return {
+    bank_balance: month.bank_balance,
+    reserved_fixed_expenses: month.reserved_fixed_expenses,
+    reserved_investment,
+    available_balance: computeAvailable(
+      month.bank_balance,
+      month.reserved_fixed_expenses,
+      reserved_investment
+    ),
+  };
+}
+
