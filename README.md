@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BudgetOS
 
-## Getting Started
+Copiloto financeiro pessoal baseado em orçamento. A pergunta que o produto responde:
 
-First, run the development server:
+> **"Quanto eu realmente posso gastar?"**
 
-```bash
+Não é um app financeiro tradicional — é um assistente de decisão diária.
+
+## Stack
+
+- **Next.js 15** (App Router) + React 19 + TypeScript
+- **TailwindCSS 4** + **shadcn/ui** (tokens em CSS variables, tema escuro)
+- **Framer Motion** — animações discretas
+- **Supabase** (`@supabase/ssr`) — dados e auth
+- **TanStack Query** — estado de servidor
+- **React Hook Form + Zod** — formulários e validação
+- **Recharts** — visualizações
+- **Lucide** — ícones
+
+## Rodando
+
+```sh
+npm install
+cp .env.example .env.local   # preencher com as chaves do Supabase
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Arquitetura
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+app/            Rotas (App Router). Pages são finas: apenas montam a view da feature.
+  (app)/        Route group com o shell autenticado (sidebar + conteúdo).
+components/
+  ui/           Primitivos shadcn/ui.
+  layout/       Shell da aplicação (sidebar, mobile nav, page header).
+  providers/    Providers globais (TanStack Query, Tooltip).
+  shared/       Componentes reutilizáveis entre features (empty state, etc.).
+features/       Cada funcionalidade isolada: componentes, hooks e schemas próprios.
+  home/         "Hoje" — orçamento disponível do dia.
+  history/      Histórico de gastos.
+  categories/   Categorias.
+  fixed-expenses/  Gastos fixos recorrentes.
+  investments/  Aportes.
+  goals/        Objetivos.
+  insights/     Padrões e recomendações.
+  settings/     Configurações.
+  auth/         Autenticação (reservado).
+  transactions/ Lançamentos (reservado).
+hooks/          Hooks globais de dados (TanStack Query) e mutações compartilhadas.
+lib/            Infraestrutura: clientes Supabase, navegação, cn(), crypto da chave.
+  finance/      REGRAS FINANCEIRAS — funções puras (disponível, reservas, ajustes).
+  assistant/    IA real (OpenAI, Structured Outputs): prompt com contexto do mês,
+                schema JSON, executor de ações (gasto, receita, pagar fixo, ajuste,
+                perguntas). Roda só no servidor via app/api/assistant/route.ts.
+services/       Orquestração com efeitos: monthService, transactionService,
+                fixedExpenseService, balanceService; stubs budgetAllocator e
+                simulationService preparados para o futuro.
+  repositories/ Acesso cru ao Supabase, uma tabela por arquivo.
+types/          Database (espelho do schema) + tipos de domínio.
+utils/          Funções puras (formatação de moeda/data pt-BR).
+supabase/       Migrations SQL (rodar no SQL Editor ou via CLI).
+scripts/        verify-finance.ts — sanidade das regras (npx tsx scripts/verify-finance.ts).
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Conceito central
 
-## Learn More
+```
+Saldo bancário − Gastos fixos reservados − Meta de investimento = Dinheiro Disponível
+```
 
-To learn more about Next.js, take a look at the following resources:
+- Categorias **não reservam dinheiro** — são apenas limites de controle.
+- Pagar um gasto fixo reduz banco **e** reserva juntos → disponível não muda.
+- Ajustes de saldo alteram apenas o saldo bancário; o disponível é recalculado.
+- Um registro por mês em `months`; orçamentos do mês em `monthly_category_budgets`
+  (cópia dos limites de `categories`, que nunca é alterada pelo fluxo mensal).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Primeiro acesso
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Sem login por email: um único `vault` protegido por chave de acesso (só o hash
+SHA-256 é salvo). Sem vault → onboarding em 4 etapas (cofre + chave, meta de
+investimento, gastos fixos, categorias). Com vault → tela de desbloqueio.
+Sem mês aberto → modal de abertura (saldo anterior, salário, extras).
 
-## Deploy on Vercel
+### Convenções
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Uma feature nunca importa de outra feature — código compartilhado sobe para `components/shared`, `hooks/` ou `utils/`.
+- Pages em `app/` não contêm lógica: importam a view de `features/<nome>` via barrel (`index.ts`).
+- Componentes de servidor por padrão; `"use client"` apenas onde há interatividade.
+- Tokens de design centralizados em `app/globals.css` — nada de cores hardcoded.
+- Tipos do banco vêm de codegen (`supabase/README.md`), nunca escritos à mão.
