@@ -28,7 +28,8 @@ const schema = z.object({
     .pipe(z.number().nonnegative("O limite não pode ser negativo")),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof schema>;
+type OutputValues = z.output<typeof schema>;
 
 interface CategoryDialogProps {
   open: boolean;
@@ -66,7 +67,7 @@ export function CategoryDialog({
     }
   }, [open, category, form]);
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: OutputValues) {
     if (category) {
       await update.mutateAsync({ id: category.id, ...values });
     } else {

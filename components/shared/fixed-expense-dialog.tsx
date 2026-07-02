@@ -34,7 +34,8 @@ const schema = z.object({
   active: z.boolean(),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof schema>;
+type OutputValues = z.output<typeof schema>;
 
 interface FixedExpenseDialogProps {
   open: boolean;
@@ -70,7 +71,7 @@ export function FixedExpenseDialog({
     }
   }, [open, expense, form]);
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: OutputValues) {
     if (expense) {
       await update.mutateAsync({ id: expense.id, ...values });
     } else {

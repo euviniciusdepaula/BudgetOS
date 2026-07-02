@@ -37,7 +37,8 @@ const schema = z.object({
   date: z.string().min(1, "Informe a data"),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof schema>;
+type OutputValues = z.output<typeof schema>;
 
 interface ExpenseDialogProps {
   open: boolean;
@@ -80,7 +81,7 @@ export function ExpenseDialog({
     label: `${c.emoji} ${c.name}`,
   }));
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: OutputValues) {
     await registerExpense.mutateAsync({
       month,
       amount: values.amount,

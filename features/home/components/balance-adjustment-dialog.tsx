@@ -43,7 +43,8 @@ const schema = z.object({
   description: z.string(),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof schema>;
+type OutputValues = z.output<typeof schema>;
 
 interface BalanceAdjustmentDialogProps {
   open: boolean;
@@ -71,7 +72,7 @@ export function BalanceAdjustmentDialog({
 
   const type = form.watch("type");
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: OutputValues) {
     await adjust.mutateAsync({
       month,
       type: values.type,

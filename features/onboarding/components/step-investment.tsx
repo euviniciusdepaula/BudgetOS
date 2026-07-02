@@ -20,7 +20,8 @@ const schema = z.object({
     .pipe(z.number().nonnegative("O valor não pode ser negativo")),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof schema>;
+type OutputValues = z.output<typeof schema>;
 
 export function StepInvestment({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
@@ -32,7 +33,7 @@ export function StepInvestment({ onDone }: { onDone: () => void }) {
   });
 
   const save = useMutation({
-    mutationFn: async (values: FormValues) => {
+    mutationFn: async (values: OutputValues) => {
       if (!vault) throw new Error("Vault não encontrado.");
       await vaultRepository.updateInvestmentGoal(vault.id, values.goal);
     },

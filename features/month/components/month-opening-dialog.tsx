@@ -35,7 +35,8 @@ const openingSchema = z.object({
     .pipe(z.number().min(0, "Informe um valor válido")),
 });
 
-type OpeningForm = z.infer<typeof openingSchema>;
+type OpeningForm = z.input<typeof openingSchema>;
+type OpeningOutput = z.output<typeof openingSchema>;
 
 export function MonthOpeningDialog() {
   const queryClient = useQueryClient();
@@ -77,7 +78,7 @@ export function MonthOpeningDialog() {
   });
 
   const openMonth = useMutation({
-    mutationFn: (input: OpeningForm) =>
+    mutationFn: (input: OpeningOutput) =>
       monthService.openMonth({
         startingBalance: input.startingBalance,
         salary: input.salary,
