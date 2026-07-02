@@ -36,6 +36,7 @@ import { monthRepository } from "@/services/repositories/month-repository";
 import { queryKeys } from "@/lib/query-keys";
 import { formatCurrency, parseCurrencyInput } from "@/utils/format";
 import { cn } from "@/lib/utils";
+import { InvestmentDialog } from "@/components/shared/investment-dialog";
 
 interface Reserve {
   id: string;
@@ -67,6 +68,7 @@ export function InvestmentsView() {
   // Multiple Reserves state stored in localStorage
   const [reserves, setReserves] = useState<Reserve[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [editingReserve, setEditingReserve] = useState<Reserve | null>(null);
   
   // Form fields
@@ -206,10 +208,18 @@ export function InvestmentsView() {
         title="Investimentos"
         description="O centro de acumulação do seu patrimônio e conquistas de metas."
       >
-        <Button size="sm" onClick={openCreate}>
-          <Plus />
-          Nova reserva
-        </Button>
+        <div className="flex gap-2">
+          {currentMonth && (
+            <Button size="sm" variant="outline" onClick={() => setInvestmentDialogOpen(true)}>
+              <PiggyBank className="size-4 mr-1.5" />
+              Registrar aporte
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreate}>
+            <Plus />
+            Nova reserva
+          </Button>
+        </div>
       </PageHeader>
 
       {/* Main Stats Cards Grid */}
@@ -407,6 +417,14 @@ export function InvestmentsView() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {currentMonth && (
+        <InvestmentDialog
+          open={investmentDialogOpen}
+          onOpenChange={setInvestmentDialogOpen}
+          month={currentMonth}
+        />
+      )}
     </div>
   );
 }

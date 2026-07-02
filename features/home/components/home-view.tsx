@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
+import { Eye, EyeOff, PiggyBank, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBudgets } from "@/hooks/use-budgets";
@@ -14,6 +14,7 @@ import { ExpenseDialog } from "./expense-dialog";
 import { FixedExpensesCard } from "./fixed-expenses-card";
 import { RecentTransactions } from "./recent-transactions";
 import { BalanceAdjustmentDialog } from "./balance-adjustment-dialog";
+import { InvestmentDialog } from "@/components/shared/investment-dialog";
 
 const STORAGE_KEY = "budgetos.hide-available";
 
@@ -30,6 +31,7 @@ export function HomeView() {
   const { data: vault } = useVault();
   
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [investmentOpen, setInvestmentOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
 
@@ -114,10 +116,16 @@ export function HomeView() {
               Limites de controle — não reservam dinheiro.
             </p>
           </div>
-          <Button size="sm" onClick={() => setExpenseOpen(true)}>
-            <Plus />
-            Registrar gasto
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setInvestmentOpen(true)}>
+              <PiggyBank className="size-4 mr-1.5" />
+              Registrar aporte
+            </Button>
+            <Button size="sm" onClick={() => setExpenseOpen(true)}>
+              <Plus />
+              Registrar gasto
+            </Button>
+          </div>
         </div>
         {budgetsLoading ? (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
@@ -152,6 +160,12 @@ export function HomeView() {
       <BalanceAdjustmentDialog
         open={adjustOpen}
         onOpenChange={setAdjustOpen}
+        month={month}
+      />
+
+      <InvestmentDialog
+        open={investmentOpen}
+        onOpenChange={setInvestmentOpen}
         month={month}
       />
     </div>

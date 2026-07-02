@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   History,
   Pencil,
+  PiggyBank,
   Search,
   Trash2,
 } from "lucide-react";
@@ -66,6 +67,7 @@ function TransactionRow({
 }) {
   const isExpense = transaction.type === "expense";
   const isIncome = transaction.type === "income";
+  const isInvestment = transaction.type === "investment";
 
   return (
     <div className="group flex items-center gap-3 px-4 py-3">
@@ -73,6 +75,8 @@ function TransactionRow({
         {transaction.category?.emoji ??
           (isIncome ? (
             <ArrowDownLeft className="size-4 text-emerald-400" />
+          ) : isInvestment ? (
+            <PiggyBank className="size-4 text-primary" />
           ) : (
             <ArrowUpRight className="size-4 text-muted-foreground" />
           ))}
@@ -81,20 +85,20 @@ function TransactionRow({
         <p className="truncate text-sm font-medium">
           {transaction.description ||
             transaction.category?.name ||
-            (isIncome ? "Receita" : "Lançamento")}
+            (isIncome ? "Receita" : isInvestment ? "Aporte de Investimento" : "Lançamento")}
         </p>
         <p className="text-xs text-muted-foreground">
-          {transaction.category?.name ?? "Sem categoria"}
+          {transaction.category?.name ?? (isInvestment ? "Investimento" : "Sem categoria")}
         </p>
       </div>
       <div className="flex items-center gap-4">
         <p
           className={cn(
             "text-sm font-medium tabular-nums",
-            isIncome ? "text-emerald-400" : "text-foreground"
+            isIncome ? "text-emerald-400" : isInvestment ? "text-primary" : "text-foreground"
           )}
         >
-          {isExpense ? "−" : isIncome ? "+" : ""}
+          {isExpense ? "−" : isIncome ? "+" : isInvestment ? "−" : ""}
           {formatCurrency(transaction.amount)}
         </p>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

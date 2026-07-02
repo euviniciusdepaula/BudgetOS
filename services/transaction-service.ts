@@ -1,10 +1,11 @@
-import { applyExpense, applyIncome, round2 } from "@/lib/finance";
+import { applyExpense, applyIncome, applyInvestment, round2 } from "@/lib/finance";
 import { toISODate } from "@/lib/dates";
 import type { TransactionSource } from "@/types/database";
 import type { Month, Transaction } from "@/types/domain";
 import { budgetRepository } from "./repositories/budget-repository";
 import { monthRepository } from "./repositories/month-repository";
 import { transactionRepository } from "./repositories/transaction-repository";
+import { investmentRepository } from "./repositories/investment-repository";
 
 export interface RegisterExpenseInput {
   month: Month;
@@ -84,6 +85,41 @@ export const transactionService = {
     return transaction;
   },
 
+  /** Registra um aporte de investimento: entra nas transações e debita do banco + reserva. */
+  async registerInvestment(input: {
+    month: Month;
+    amount: number;
+    description: string;
+    date?: string;
+    source?: TransactionSource;
+  }): Promise<Transaction> {
+    if (input.month.closed) throw new Error("Este mês já está fechado.");
+
+    const transaction = await transactionRepository.create({
+      month_id: input.month.id,
+      category_id: null,
+      type: "investment",
+      amount: input.amount,
+      description: input.description || "Aporte de Investimento",
+      source: input.source ?? "manual",
+      date: input.date ?? toISODate(),
+    });
+
+    // Registrar no repositório de investimentos para fins de meta visual
+    await investmentRepository.create({
+      month_id: input.month.id,
+      amount: input.amount,
+      description: input.description || "Aporte de Investimento",
+    });
+
+    await monthRepository.update(
+      input.month.id,
+      applyInvestment(input.month, input.amount)
+    );
+
+    return transaction;
+  },
+
   /** Deleta uma transação e reverte seu impacto no orçamento e saldos do mês. */
   async deleteTransaction(id: string): Promise<void> {
     const tx = await transactionRepository.findById(id);
@@ -117,6 +153,14 @@ export const transactionService = {
       await monthRepository.update(
         month.id,
         applyExpense(month, tx.amount)
+      );
+    } else if (tx.type === "investment") {
+      await monthRepository.update(
+        month.id,
+        {
+          bank_balance: round2(month.bank_balance + tx.amount),
+          reserved_investment: round2(month.reserved_investment + tx.amount),
+        }
       );
     }
 
@@ -167,6 +211,14 @@ export const transactionService = {
         month.id,
         applyExpense(currentMonthState, tx.amount)
       );
+    } else if (tx.type === "investment") {
+      currentMonthState = await monthRepository.update(
+        month.id,
+        {
+          bank_balance: round2(currentMonthState.bank_balance + tx.amount),
+          reserved_investment: round2(currentMonthState.reserved_investment + tx.amount),
+        }
+      );
     }
 
     // 2. Aplicar o impacto da nova transação
@@ -192,6 +244,14 @@ export const transactionService = {
       currentMonthState = await monthRepository.update(
         month.id,
         applyIncome(currentMonthState, input.amount)
+      );
+    } else if (tx.type === "investment") {
+      currentMonthState = await monthRepository.update(
+        month.id,
+        {
+          bank_balance: round2(currentMonthState.bank_balance - input.amount),
+          reserved_investment: round2(currentMonthState.reserved_investment - input.amount),
+        }
       );
     }
 

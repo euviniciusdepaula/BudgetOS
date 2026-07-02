@@ -2,18 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import {
   LockKeyhole,
   PiggyBank,
   Vault as VaultIcon,
-  Bot,
   RefreshCw,
   Lock,
   Download,
   Upload,
   Sun,
   Moon,
-  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,13 +25,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PageHeader } from "@/components/layout/page-header";
 import { useVault } from "@/hooks/use-vault";
 import { useCurrentMonth } from "@/hooks/use-current-month";
@@ -48,25 +40,14 @@ export function SettingsView() {
   const queryClient = useQueryClient();
   const { data: vault } = useVault();
   const { data: currentMonth } = useCurrentMonth();
+  const { theme, setTheme } = useTheme();
 
   const [goal, setGoal] = useState("");
-  
-  // Custom IA Settings
-  const [aiModel, setAiModel] = useState("gpt-4o-mini");
-  const [openaiKey, setOpenaiKey] = useState("");
-  
-  // Theme state (Visual only)
-  const [theme, setTheme] = useState("dark");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     if (vault) setGoal(String(vault.investment_goal));
-    
-    // Load OpenAI overrides
-    const savedModel = window.localStorage.getItem("budgetos.openai-model");
-    if (savedModel) setAiModel(savedModel);
-    
-    const savedKey = window.localStorage.getItem("budgetos.openai-key");
-    if (savedKey) setOpenaiKey(savedKey);
   }, [vault]);
 
   const saveGoal = useMutation({
@@ -89,13 +70,6 @@ export function SettingsView() {
     },
     onError: (error) => toast.error(error.message),
   });
-
-  const handleSaveAiSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    window.localStorage.setItem("budgetos.openai-model", aiModel);
-    window.localStorage.setItem("budgetos.openai-key", openaiKey);
-    toast.success("Configurações da IA salvas com sucesso!");
-  };
 
   const handleExportData = () => {
     const data = {
@@ -194,7 +168,7 @@ export function SettingsView() {
     <div className="space-y-8">
       <PageHeader
         title="Configurações"
-        description="Conta, preferências, IA e utilitários de banco."
+        description="Conta, preferências e utilitários de banco."
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -258,50 +232,7 @@ export function SettingsView() {
           </CardContent>
         </Card>
 
-        {/* Card 3: AI Co-pilot Settings */}
-        <Card className="border-border/40">
-          <CardHeader>
-            <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
-              <Bot className="size-4 text-muted-foreground" />
-            </span>
-            <CardTitle>Modelo e Chave da IA</CardTitle>
-            <CardDescription>
-              Personalize o modelo de linguagem e sua própria API Key do copiloto.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveAiSettings} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Modelo da IA</Label>
-                <Select value={aiModel} onValueChange={(val) => setAiModel(val ?? "gpt-4o-mini")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4o-mini">gpt-4o-mini (Mais rápido e econômico)</SelectItem>
-                    <SelectItem value="gpt-4o">gpt-4o (Altíssima precisão)</SelectItem>
-                    <SelectItem value="o1-mini">o1-mini (Maior poder de raciocínio)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="openai-key">OpenAI API Key (Opcional)</Label>
-                <Input
-                  id="openai-key"
-                  type="password"
-                  placeholder="sk-..."
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                />
-              </div>
-              <Button type="submit" size="sm">
-                Salvar Configurações IA
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Theme */}
+        {/* Card 3: Theme */}
         <Card className="border-border/40">
           <CardHeader>
             <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
@@ -312,26 +243,23 @@ export function SettingsView() {
           </CardHeader>
           <CardContent className="flex gap-2">
             <Button
-              variant={theme === "dark" ? "default" : "outline"}
+              variant={mounted && theme === "dark" ? "default" : "outline"}
               size="sm"
               onClick={() => setTheme("dark")}
             >
               <Moon className="size-4 mr-2" /> Escuro
             </Button>
             <Button
-              variant={theme === "light" ? "default" : "outline"}
+              variant={mounted && theme === "light" ? "default" : "outline"}
               size="sm"
-              onClick={() => {
-                setTheme("light");
-                toast.info("Light mode será ativado por completo em breve!");
-              }}
+              onClick={() => setTheme("light")}
             >
               <Sun className="size-4 mr-2" /> Claro
             </Button>
           </CardContent>
         </Card>
 
-        {/* Card 5: Backup and Data import/export */}
+        {/* Card 4: Backup and Data import/export */}
         <Card className="border-border/40">
           <CardHeader>
             <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
@@ -350,7 +278,7 @@ export function SettingsView() {
           </CardContent>
         </Card>
 
-        {/* Card 6: Operations & Actions */}
+        {/* Card 5: Operations & Actions */}
         <Card className="border-border/40">
           <CardHeader>
             <span className="mb-1 flex size-9 items-center justify-center rounded-lg border bg-card">
