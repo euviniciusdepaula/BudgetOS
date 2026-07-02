@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { parseCurrencyInput } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,8 +37,9 @@ const adjustmentTypes: Array<{ value: AdjustmentType; label: string }> = [
 const schema = z.object({
   type: z.enum(["entry", "exit", "correction", "transfer"]),
   amount: z
-    .number({ message: "Informe um valor" })
-    .refine((v) => v !== 0, "O valor não pode ser zero"),
+    .string({ message: "Informe um valor" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().refine((v) => v !== 0, "O valor não pode ser zero")),
   description: z.string(),
 });
 
@@ -58,12 +60,12 @@ export function BalanceAdjustmentDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { type: "entry", amount: undefined, description: "" },
+    defaultValues: { type: "entry", amount: "", description: "" },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({ type: "entry", amount: undefined, description: "" });
+      form.reset({ type: "entry", amount: "", description: "" });
     }
   }, [open, form]);
 
@@ -117,11 +119,11 @@ export function BalanceAdjustmentDialog({
             <Label htmlFor="adj-amount">Valor</Label>
             <Input
               id="adj-amount"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               placeholder="0,00"
-              {...form.register("amount", { valueAsNumber: true })}
-            />
+              {...form.register("amount")}
+              />
             {errors.amount && (
               <p className="text-sm text-destructive">{errors.amount.message}</p>
             )}

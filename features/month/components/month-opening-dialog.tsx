@@ -18,18 +18,21 @@ import { currentYearMonth, monthLabel } from "@/lib/dates";
 import { computeMonthOpening } from "@/lib/finance";
 import { queryKeys } from "@/lib/query-keys";
 import { monthService } from "@/services/month-service";
-import { formatCurrency } from "@/utils/format";
+import { formatCurrency, parseCurrencyInput } from "@/utils/format";
 
 const openingSchema = z.object({
   startingBalance: z
-    .number({ message: "Informe um valor válido" })
-    .min(0, "Informe um valor válido"),
+    .string({ message: "Informe um valor válido" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().min(0, "Informe um valor válido")),
   salary: z
-    .number({ message: "Informe um valor válido" })
-    .min(0, "Informe um valor válido"),
+    .string({ message: "Informe um valor válido" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().min(0, "Informe um valor válido")),
   extraIncome: z
-    .number({ message: "Informe um valor válido" })
-    .min(0, "Informe um valor válido"),
+    .string({ message: "Informe um valor válido" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().min(0, "Informe um valor válido")),
 });
 
 type OpeningForm = z.infer<typeof openingSchema>;
@@ -47,12 +50,12 @@ export function MonthOpeningDialog() {
 
   const form = useForm<OpeningForm>({
     resolver: zodResolver(openingSchema),
-    defaultValues: { startingBalance: 0, salary: 0, extraIncome: 0 },
+    defaultValues: { startingBalance: "0", salary: "0", extraIncome: "0" },
   });
 
   useEffect(() => {
     if (previousBalance != null) {
-      form.setValue("startingBalance", previousBalance);
+      form.setValue("startingBalance", String(previousBalance));
     }
   }, [previousBalance, form]);
 
@@ -66,9 +69,9 @@ export function MonthOpeningDialog() {
   );
 
   const preview = computeMonthOpening({
-    startingBalance: Number(values.startingBalance) || 0,
-    salary: Number(values.salary) || 0,
-    extraIncome: Number(values.extraIncome) || 0,
+    startingBalance: parseCurrencyInput(String(values.startingBalance)) || 0,
+    salary: parseCurrencyInput(String(values.salary)) || 0,
+    extraIncome: parseCurrencyInput(String(values.extraIncome)) || 0,
     fixedExpensesTotal: fixedTotal,
     investmentGoal: vault?.investment_goal ?? 0,
   });
@@ -114,30 +117,27 @@ export function MonthOpeningDialog() {
             <Label htmlFor="startingBalance">Saldo restante do mês anterior</Label>
             <Input
               id="startingBalance"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register("startingBalance", { valueAsNumber: true })}
+              type="text"
+              inputMode="decimal"
+              {...form.register("startingBalance")}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="salary">Salário recebido</Label>
             <Input
               id="salary"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register("salary", { valueAsNumber: true })}
+              type="text"
+              inputMode="decimal"
+              {...form.register("salary")}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="extraIncome">Receitas extras</Label>
             <Input
               id="extraIncome"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register("extraIncome", { valueAsNumber: true })}
+              type="text"
+              inputMode="decimal"
+              {...form.register("extraIncome")}
             />
           </div>
 

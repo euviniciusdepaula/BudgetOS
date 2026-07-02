@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
+import { parseCurrencyInput } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +15,9 @@ import { vaultRepository } from "@/services/repositories/vault-repository";
 
 const schema = z.object({
   goal: z
-    .number({ message: "Informe um valor" })
-    .nonnegative("O valor não pode ser negativo"),
+    .string({ message: "Informe um valor" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().nonnegative("O valor não pode ser negativo")),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -26,7 +28,7 @@ export function StepInvestment({ onDone }: { onDone: () => void }) {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { goal: undefined },
+    defaultValues: { goal: "" },
   });
 
   const save = useMutation({
@@ -50,12 +52,12 @@ export function StepInvestment({ onDone }: { onDone: () => void }) {
         <Label htmlFor="investment-goal">Meta mensal de investimento</Label>
         <Input
           id="investment-goal"
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
           min="0"
           placeholder="1500,00"
           autoFocus
-          {...form.register("goal", { valueAsNumber: true })}
+          {...form.register("goal")}
         />
         {form.formState.errors.goal && (
           <p className="text-sm text-destructive">

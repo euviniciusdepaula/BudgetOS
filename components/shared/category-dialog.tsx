@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { parseCurrencyInput } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,8 +23,9 @@ const schema = z.object({
   emoji: z.string().min(1, "Escolha um emoji").max(8, "Use um único emoji"),
   name: z.string().min(1, "Informe um nome"),
   default_limit: z
-    .number({ message: "Informe um limite" })
-    .nonnegative("O limite não pode ser negativo"),
+    .string({ message: "Informe um limite" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().nonnegative("O limite não pode ser negativo")),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -47,7 +49,7 @@ export function CategoryDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { emoji: "", name: "", default_limit: undefined },
+    defaultValues: { emoji: "", name: "", default_limit: "" },
   });
 
   useEffect(() => {
@@ -57,9 +59,9 @@ export function CategoryDialog({
           ? {
               emoji: category.emoji,
               name: category.name,
-              default_limit: category.default_limit,
+              default_limit: String(category.default_limit),
             }
-          : { emoji: "", name: "", default_limit: undefined }
+          : { emoji: "", name: "", default_limit: "" }
       );
     }
   }, [open, category, form]);
@@ -116,11 +118,11 @@ export function CategoryDialog({
             <Label htmlFor="cat-limit">Limite mensal</Label>
             <Input
               id="cat-limit"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               min="0"
               placeholder="800,00"
-              {...form.register("default_limit", { valueAsNumber: true })}
+              {...form.register("default_limit")}
             />
             {errors.default_limit && (
               <p className="text-sm text-destructive">

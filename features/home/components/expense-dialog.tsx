@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { parseCurrencyInput } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,8 +29,9 @@ import { useRegisterExpense } from "../hooks/use-register-expense";
 
 const schema = z.object({
   amount: z
-    .number({ message: "Informe um valor" })
-    .positive("O valor deve ser maior que zero"),
+    .string({ message: "Informe um valor" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().positive("O valor deve ser maior que zero")),
   categoryId: z.string().min(1, "Escolha uma categoria"),
   description: z.string(),
   date: z.string().min(1, "Informe a data"),
@@ -55,7 +57,7 @@ export function ExpenseDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      amount: undefined,
+      amount: "",
       categoryId: "",
       description: "",
       date: toISODate(),
@@ -65,7 +67,7 @@ export function ExpenseDialog({
   useEffect(() => {
     if (open) {
       form.reset({
-        amount: undefined,
+        amount: "",
         categoryId: "",
         description: "",
         date: toISODate(),
@@ -106,12 +108,11 @@ export function ExpenseDialog({
               <Label htmlFor="exp-amount">Valor</Label>
               <Input
                 id="exp-amount"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 placeholder="0,00"
                 autoFocus
-                {...form.register("amount", { valueAsNumber: true })}
+                {...form.register("amount")}
               />
               {errors.amount && (
                 <p className="text-sm text-destructive">

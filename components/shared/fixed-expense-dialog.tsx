@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { parseCurrencyInput } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,8 +23,9 @@ import type { FixedExpense } from "@/types/domain";
 const schema = z.object({
   name: z.string().min(1, "Informe um nome"),
   amount: z
-    .number({ message: "Informe um valor" })
-    .positive("O valor deve ser maior que zero"),
+    .string({ message: "Informe um valor" })
+    .transform(parseCurrencyInput)
+    .pipe(z.number().positive("O valor deve ser maior que zero")),
   due_day: z
     .number({ message: "Informe o dia" })
     .int("Dia inválido")
@@ -50,7 +52,7 @@ export function FixedExpenseDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", amount: undefined, due_day: undefined, active: true },
+    defaultValues: { name: "", amount: "", due_day: undefined, active: true },
   });
 
   useEffect(() => {
@@ -59,11 +61,11 @@ export function FixedExpenseDialog({
         expense
           ? {
               name: expense.name,
-              amount: expense.amount,
+              amount: String(expense.amount),
               due_day: expense.due_day,
               active: expense.active,
             }
-          : { name: "", amount: undefined, due_day: undefined, active: true }
+          : { name: "", amount: "", due_day: undefined, active: true }
       );
     }
   }, [open, expense, form]);
@@ -108,11 +110,11 @@ export function FixedExpenseDialog({
               <Label htmlFor="fe-amount">Valor</Label>
               <Input
                 id="fe-amount"
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 min="0"
                 placeholder="0,00"
-                {...form.register("amount", { valueAsNumber: true })}
+                {...form.register("amount")}
               />
               {errors.amount && (
                 <p className="text-sm text-destructive">
