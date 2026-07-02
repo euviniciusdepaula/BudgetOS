@@ -6,7 +6,9 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   History,
+  Pencil,
   Search,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,9 +22,11 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TransactionEditDialog } from "@/components/shared/transaction-edit-dialog";
 import { useCategories } from "@/hooks/use-categories";
 import { useCurrentMonth } from "@/hooks/use-current-month";
 import { useTransactions } from "@/hooks/use-transactions";
+import { useTransactionMutations } from "@/hooks/use-transaction-mutations";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/utils/format";
 import type { TransactionWithCategory } from "@/types/domain";
@@ -49,12 +53,22 @@ function periodRange(period: string): { from?: string; to?: string } {
   return {};
 }
 
-function TransactionRow({ transaction }: { transaction: TransactionWithCategory }) {
+function TransactionRow({
+  transaction,
+  onEdit,
+  onDelete,
+  deletePending,
+}: {
+  transaction: TransactionWithCategory;
+  onEdit: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
+}) {
   const isExpense = transaction.type === "expense";
   const isIncome = transaction.type === "income";
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className="group flex items-center gap-3 px-4 py-3">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-card text-base">
         {transaction.category?.emoji ??
           (isIncome ? (
@@ -73,15 +87,38 @@ function TransactionRow({ transaction }: { transaction: TransactionWithCategory 
           {transaction.category?.name ?? "Sem categoria"}
         </p>
       </div>
-      <p
-        className={cn(
-          "text-sm font-medium tabular-nums",
-          isIncome ? "text-emerald-400" : "text-foreground"
-        )}
-      >
-        {isExpense ? "−" : isIncome ? "+" : ""}
-        {formatCurrency(transaction.amount)}
-      </p>
+      <div className="flex items-center gap-4">
+        <p
+          className={cn(
+            "text-sm font-medium tabular-nums",
+            isIncome ? "text-emerald-400" : "text-foreground"
+          )}
+        >
+          {isExpense ? "−" : isIncome ? "+" : ""}
+          {formatCurrency(transaction.amount)}
+        </p>
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Editar"
+            onClick={onEdit}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Excluir"
+            onClick={onDelete}
+            disabled={deletePending}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -89,11 +126,15 @@ function TransactionRow({ transaction }: { transaction: TransactionWithCategory 
 export function HistoryView() {
   const { data: month } = useCurrentMonth();
   const { data: categories } = useCategories();
+  const { remove } = useTransactionMutations(month?.id);
 
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL_CATEGORIES);
   const [period, setPeriod] = useState("month");
   const [ascending, setAscending] = useState(false);
+
+  const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const range = periodRange(period);
   const { data: transactions, isLoading } = useTransactions(month?.id, {
@@ -208,6 +249,16 @@ export function HistoryView() {
                   <TransactionRow
                     key={transaction.id}
                     transaction={transaction}
+                    onEdit={() => {
+                      setEditingTransaction(transaction);
+                      setEditDialogOpen(true);
+                    }}
+                    onDelete={() => {
+                      if (window.confirm("Deseja realmente excluir este lançamento?")) {
+                        remove.mutate(transaction.id);
+                      }
+                    }}
+                    deletePending={remove.isPending && remove.variables === transaction.id}
                   />
                 ))}
               </div>
@@ -215,6 +266,13 @@ export function HistoryView() {
           ))}
         </div>
       )}
+
+      <TransactionEditDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        transaction={editingTransaction}
+      />
     </div>
   );
 }
+

@@ -17,6 +17,16 @@ export const monthRepository = {
     return data;
   },
 
+  async findById(id: string): Promise<Month | null> {
+    const { data, error } = await createClient()
+      .from("months")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   async findLatestBefore(year: number, month: number): Promise<Month | null> {
     const { data, error } = await createClient()
       .from("months")

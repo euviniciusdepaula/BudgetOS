@@ -43,4 +43,37 @@ export const transactionRepository = {
     if (error) throw new Error(error.message);
     return data;
   },
+
+  async findById(id: string): Promise<Transaction | null> {
+    const { data, error } = await createClient()
+      .from("transactions")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async update(
+    id: string,
+    patch: Database["public"]["Tables"]["transactions"]["Update"]
+  ): Promise<Transaction> {
+    const { data, error } = await createClient()
+      .from("transactions")
+      .update(patch)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async remove(id: string): Promise<void> {
+    const { error } = await createClient()
+      .from("transactions")
+      .delete()
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
 };
+

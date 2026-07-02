@@ -83,4 +83,125 @@ export const transactionService = {
 
     return transaction;
   },
+
+  /** Deleta uma transação e reverte seu impacto no orçamento e saldos do mês. */
+  async deleteTransaction(id: string): Promise<void> {
+    const tx = await transactionRepository.findById(id);
+    if (!tx) throw new Error("Transação não encontrada.");
+
+    const month = await monthRepository.findById(tx.month_id);
+    if (!month) throw new Error("Mês correspondente não encontrado.");
+    if (month.closed) throw new Error("O mês desta transação já está fechado.");
+
+    // 1. Desfazer impacto no orçamento da categoria, se houver
+    if (tx.category_id && tx.type === "expense") {
+      const budget = await budgetRepository.findByMonthAndCategory(
+        tx.month_id,
+        tx.category_id
+      );
+      if (budget) {
+        await budgetRepository.updateSpent(
+          budget.id,
+          round2(Math.max(0, budget.spent - tx.amount))
+        );
+      }
+    }
+
+    // 2. Desfazer impacto nos saldos do mês
+    if (tx.type === "expense") {
+      await monthRepository.update(
+        month.id,
+        applyIncome(month, tx.amount)
+      );
+    } else if (tx.type === "income") {
+      await monthRepository.update(
+        month.id,
+        applyExpense(month, tx.amount)
+      );
+    }
+
+    // 3. Deletar a transação
+    await transactionRepository.remove(id);
+  },
+
+  /** Atualiza os dados de uma transação e ajusta proporcionalmente o saldo e orçamento do mês. */
+  async updateTransaction(
+    id: string,
+    input: {
+      amount: number;
+      categoryId: string | null;
+      description: string;
+      date: string;
+    }
+  ): Promise<Transaction> {
+    const tx = await transactionRepository.findById(id);
+    if (!tx) throw new Error("Transação não encontrada.");
+
+    const month = await monthRepository.findById(tx.month_id);
+    if (!month) throw new Error("Mês correspondente não encontrado.");
+    if (month.closed) throw new Error("O mês desta transação já está fechado.");
+
+    // 1. Reverter o impacto da transação antiga
+    let currentMonthState = { ...month };
+
+    if (tx.category_id && tx.type === "expense") {
+      const oldBudget = await budgetRepository.findByMonthAndCategory(
+        tx.month_id,
+        tx.category_id
+      );
+      if (oldBudget) {
+        await budgetRepository.updateSpent(
+          oldBudget.id,
+          round2(Math.max(0, oldBudget.spent - tx.amount))
+        );
+      }
+    }
+
+    if (tx.type === "expense") {
+      currentMonthState = await monthRepository.update(
+        month.id,
+        applyIncome(currentMonthState, tx.amount)
+      );
+    } else if (tx.type === "income") {
+      currentMonthState = await monthRepository.update(
+        month.id,
+        applyExpense(currentMonthState, tx.amount)
+      );
+    }
+
+    // 2. Aplicar o impacto da nova transação
+    if (input.categoryId && tx.type === "expense") {
+      const newBudget = await budgetRepository.findByMonthAndCategory(
+        tx.month_id,
+        input.categoryId
+      );
+      if (newBudget) {
+        await budgetRepository.updateSpent(
+          newBudget.id,
+          round2(newBudget.spent + input.amount)
+        );
+      }
+    }
+
+    if (tx.type === "expense") {
+      currentMonthState = await monthRepository.update(
+        month.id,
+        applyExpense(currentMonthState, input.amount)
+      );
+    } else if (tx.type === "income") {
+      currentMonthState = await monthRepository.update(
+        month.id,
+        applyIncome(currentMonthState, input.amount)
+      );
+    }
+
+    // 3. Salvar as alterações da transação
+    return transactionRepository.update(id, {
+      amount: input.amount,
+      category_id: input.categoryId,
+      description: input.description,
+      date: input.date,
+    });
+  },
 };
+
