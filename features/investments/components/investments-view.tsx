@@ -238,6 +238,10 @@ export function InvestmentsView() {
     return { streak, accumulated, history: chronological };
   }, [allMonths, vault]);
 
+  const totalAccumulated = useMemo(() => {
+    return reserves.reduce((sum, r) => sum + r.current, 0);
+  }, [reserves]);
+
   // Create or edit reserve
   const handleSubmitReserve = (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,11 +312,11 @@ export function InvestmentsView() {
     if (stats.streak >= 3) {
       return `Dica IA: Incrível! Você está em uma sequência de ${stats.streak} meses batendo sua meta de aportes. Isso acelera seus planos de longo prazo em até 22%.`;
     }
-    if (stats.accumulated > 10000) {
+    if (totalAccumulated > 10000) {
       return "Dica IA: Seu patrimônio acumulado está crescendo. Que tal simular na aba 'Simulações' o impacto de manter este ritmo por mais 12 meses?";
     }
     return "Dica IA: Separar o investimento logo na abertura do mês é o hábito das pessoas mais bem-sucedidas financeiramente. Continue assim!";
-  }, [stats]);
+  }, [stats.streak, totalAccumulated]);
 
   return (
     <div className="space-y-8">
@@ -335,7 +339,7 @@ export function InvestmentsView() {
       </PageHeader>
 
       {/* Main Stats Cards Grid */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border/40 bg-accent/5">
           <CardContent className="p-5 flex flex-col justify-between h-full">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Meta Mensal</p>
@@ -360,7 +364,7 @@ export function InvestmentsView() {
               <Coins className="size-3.5" /> Total Acumulado
             </p>
             <span className="text-2xl font-bold tracking-tight text-primary mt-3 tabular-nums">
-              {formatCurrency(stats.accumulated)}
+              {formatCurrency(totalAccumulated)}
             </span>
           </CardContent>
         </Card>
@@ -522,7 +526,7 @@ export function InvestmentsView() {
                   <span className="font-semibold text-foreground/80">
                     {m.month}/{m.year}
                   </span>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3 sm:gap-6">
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Meta</p>
                       <p className="font-medium tabular-nums">{formatCurrency(targetGoal)}</p>

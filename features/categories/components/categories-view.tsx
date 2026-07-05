@@ -183,7 +183,7 @@ export function CategoriesView() {
       </PageHeader>
 
       {/* Summary Stats Panel */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border/40 bg-accent/5">
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">

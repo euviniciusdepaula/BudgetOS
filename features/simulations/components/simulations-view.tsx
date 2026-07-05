@@ -483,7 +483,7 @@ export function SimulationsView() {
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
                     {/* Before vs After stats */}
-                    <div className="grid grid-cols-2 gap-6 p-4 rounded-xl bg-accent/20 border border-border/10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4 rounded-xl bg-accent/20 border border-border/10">
                       <div>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                           Antes da Decisão
@@ -504,7 +504,7 @@ export function SimulationsView() {
                         </dl>
                       </div>
 
-                      <div className="border-l border-border/10 pl-6">
+                      <div className="border-t sm:border-t-0 sm:border-l border-border/10 pt-4 sm:pt-0 sm:pl-6">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                           Depois da Decisão
                         </span>

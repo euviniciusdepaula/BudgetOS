@@ -75,8 +75,25 @@ export function HomeView() {
     return (month?.available_balance ?? 0) - totalRemaining;
   }, [month?.available_balance, totalRemaining]);
 
+  const [totalInvestments, setTotalInvestments] = useState(0);
+
   useEffect(() => {
     setHidden(window.localStorage.getItem(STORAGE_KEY) === "1");
+    
+    // Load investments from reserves in localStorage
+    const rawReserves = window.localStorage.getItem("budgetos.investment-reserves");
+    if (rawReserves) {
+      try {
+        const parsed = JSON.parse(rawReserves);
+        const sum = parsed.reduce((acc: number, r: any) => acc + (r.current || 0), 0);
+        setTotalInvestments(sum);
+      } catch {
+        setTotalInvestments(0);
+      }
+    } else {
+      // Fallback to default reserves sum
+      setTotalInvestments(30100);
+    }
   }, []);
 
   function toggleHidden() {
@@ -169,7 +186,7 @@ export function HomeView() {
             </span>
             <span className="text-muted-2/60">•</span>
             <span>
-              Investimentos: <span className="text-foreground font-semibold tabular-nums">{format(month.reserved_investment)}</span>
+              Investimentos: <span className="text-foreground font-semibold tabular-nums">{format(totalInvestments)}</span>
             </span>
           </div>
         </div>
