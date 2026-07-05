@@ -207,7 +207,7 @@ export function HomeView() {
         ) : (
           <CategoryCards
             budgets={budgets ?? []}
-            hidden={hidden}
+            hidden={false}
             onCategoryClick={(category) => {
               setSelectedCategory(category);
               setDetailOpen(true);
