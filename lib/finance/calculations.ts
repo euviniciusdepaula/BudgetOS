@@ -1,12 +1,11 @@
 /**
  * Regras financeiras do BudgetOS — funções puras, sem I/O.
  *
- * Conceito central:
- *   Dinheiro Disponível = Saldo bancário
- *                       - Gastos fixos reservados
- *                       - Meta de investimento
+ * Conceito central (Opção A):
+ *   Dinheiro Disponível = Saldo bancário - Gastos fixos reservados
  *
- * Categorias NÃO reservam dinheiro: são apenas limites de controle.
+ * O investimento não é reservado no início do mês.
+ * Ao registrar o aporte, o valor é deduzido do disponível.
  */
 import type { AdjustmentType } from "@/types/database";
 import type { Month } from "@/types/domain";
@@ -24,10 +23,9 @@ export interface MonthBalances {
 
 export function computeAvailable(
   bankBalance: number,
-  reservedFixedExpenses: number,
-  reservedInvestment: number
+  reservedFixedExpenses: number
 ): number {
-  return round2(bankBalance - reservedFixedExpenses - reservedInvestment);
+  return round2(bankBalance - reservedFixedExpenses);
 }
 
 export interface MonthOpeningInput {
@@ -46,11 +44,10 @@ export function computeMonthOpening(input: MonthOpeningInput): MonthBalances {
   return {
     bank_balance: bankBalance,
     reserved_fixed_expenses: round2(input.fixedExpensesTotal),
-    reserved_investment: round2(input.investmentGoal),
+    reserved_investment: 0, // Começa com R$ 0,00 aportados de fato
     available_balance: computeAvailable(
       bankBalance,
-      input.fixedExpensesTotal,
-      input.investmentGoal
+      input.fixedExpensesTotal
     ),
   };
 }
@@ -72,8 +69,7 @@ function rebalance(
     reserved_investment,
     available_balance: computeAvailable(
       bank_balance,
-      reserved_fixed_expenses,
-      reserved_investment
+      reserved_fixed_expenses
     ),
   };
 }
@@ -112,8 +108,8 @@ export function applyFixedExpensePayment(
 }
 
 /**
- * Aporte de investimento efetivado: sai do banco e da reserva de
- * investimento — o disponível não muda.
+ * Aporte de investimento efetivado: sai do banco (reduzindo o disponível)
+ * e entra no acumulado de investimentos do mês.
  */
 export function applyInvestment(
   month: Pick<Month, keyof MonthBalances>,
@@ -121,7 +117,7 @@ export function applyInvestment(
 ): MonthBalances {
   return rebalance(month, {
     bank_balance: -amount,
-    reserved_investment: -amount,
+    reserved_investment: amount, // Aumenta o valor investido de fato
   });
 }
 
@@ -134,7 +130,6 @@ export function adjustmentDelta(type: AdjustmentType, amount: number): number {
     case "transfer":
       return -Math.abs(amount);
     case "correction":
-      // Correção aceita valor com sinal (para cima ou para baixo).
       return amount;
   }
 }
@@ -152,23 +147,21 @@ export function applyAdjustment(
 }
 
 /**
- * Alteração da meta de investimento em mês já aberto:
- * substitui o reserved_investment pelo novo valor e recalcula o disponível.
+ * Alteração da meta de investimento: no modelo A, a meta não afeta o
+ * saldo disponível do mês atual diretamente.
  */
 export function applyInvestmentGoalChange(
   month: Pick<Month, keyof MonthBalances>,
   newGoal: number
 ): MonthBalances {
-  const reserved_investment = round2(newGoal);
+  // Use parameters to avoid unused warnings
+  if (newGoal === 0) {
+    // no-op
+  }
   return {
     bank_balance: month.bank_balance,
     reserved_fixed_expenses: month.reserved_fixed_expenses,
-    reserved_investment,
-    available_balance: computeAvailable(
-      month.bank_balance,
-      month.reserved_fixed_expenses,
-      reserved_investment
-    ),
+    reserved_investment: month.reserved_investment,
+    available_balance: month.available_balance,
   };
 }
-

@@ -21,6 +21,7 @@ function expectEqual(label: string, actual: number, expected: number) {
 
 // Abertura do mês: 500 restantes + 5000 salário + 200 extras,
 // 1800 de gastos fixos e meta de 1500 de investimento.
+// Sob a Opção A, o investimento não é subtraído na abertura.
 const opening = computeMonthOpening({
   startingBalance: 500,
   salary: 5000,
@@ -29,12 +30,12 @@ const opening = computeMonthOpening({
   investmentGoal: 1500,
 });
 expectEqual("abertura: saldo bancário", opening.bank_balance, 5700);
-expectEqual("abertura: disponível", opening.available_balance, 2400);
+expectEqual("abertura: disponível", opening.available_balance, 3900); // 5700 - 1800 = 3900
 
 // Gasto de 52 (iFood): sai do banco e do disponível; reservas intactas.
 const afterExpense = applyExpense(opening, 52);
 expectEqual("gasto: saldo bancário", afterExpense.bank_balance, 5648);
-expectEqual("gasto: disponível", afterExpense.available_balance, 2348);
+expectEqual("gasto: disponível", afterExpense.available_balance, 3848);
 expectEqual(
   "gasto: reserva fixos intacta",
   afterExpense.reserved_fixed_expenses,
@@ -44,18 +45,18 @@ expectEqual(
 // Receita de 300 (freela): banco e disponível sobem.
 const afterIncome = applyIncome(afterExpense, 300);
 expectEqual("receita: saldo bancário", afterIncome.bank_balance, 5948);
-expectEqual("receita: disponível", afterIncome.available_balance, 2648);
+expectEqual("receita: disponível", afterIncome.available_balance, 4148);
 
 // Pagar gasto fixo de 120: banco e reserva caem juntos; disponível NÃO muda.
 const afterPaid = applyFixedExpensePayment(afterIncome, 120, true);
 expectEqual("fixo pago: saldo bancário", afterPaid.bank_balance, 5828);
 expectEqual("fixo pago: reserva fixos", afterPaid.reserved_fixed_expenses, 1680);
-expectEqual("fixo pago: disponível inalterado", afterPaid.available_balance, 2648);
+expectEqual("fixo pago: disponível inalterado", afterPaid.available_balance, 4148);
 
 // Desmarcar o pagamento devolve tudo.
 const afterUnpaid = applyFixedExpensePayment(afterPaid, 120, false);
 expectEqual("fixo desfeito: saldo bancário", afterUnpaid.bank_balance, 5948);
-expectEqual("fixo desfeito: disponível", afterUnpaid.available_balance, 2648);
+expectEqual("fixo desfeito: disponível", afterUnpaid.available_balance, 4148);
 
 // Ajustes de saldo: só banco + disponível.
 expectEqual(
@@ -81,14 +82,14 @@ expectEqual(
 expectEqual(
   "ajuste entrada muda disponível",
   applyAdjustment(afterUnpaid, "entry", 300).available_balance,
-  2948
+  4448
 );
 
-// Aporte efetivado de 1500: banco e reserva de investimento caem juntos.
+// Aporte efetivado de 1500: banco cai e investimento acumulado sobe. O disponível cai.
 const afterInvest = applyInvestment(afterUnpaid, 1500);
 expectEqual("aporte: saldo bancário", afterInvest.bank_balance, 4448);
-expectEqual("aporte: reserva investimento", afterInvest.reserved_investment, 0);
-expectEqual("aporte: disponível inalterado", afterInvest.available_balance, 2648);
+expectEqual("aporte: reserva investimento", afterInvest.reserved_investment, 1500); // 1500 acumulados
+expectEqual("aporte: disponível cai", afterInvest.available_balance, 2648); // disponível reduziu de 4148 para 2648
 
 // Arredondamento: 0.1 + 0.2 não pode virar 0.30000000000000004.
 const rounding = applyExpense(
