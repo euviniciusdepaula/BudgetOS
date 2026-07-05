@@ -36,6 +36,11 @@ export function StepInvestment({ onDone }: { onDone: () => void }) {
     mutationFn: async (values: OutputValues) => {
       if (!vault) throw new Error("Vault não encontrado.");
       await vaultRepository.updateInvestmentGoal(vault.id, values.goal);
+      window.localStorage.setItem("budgetos.recurring-investment", JSON.stringify({
+        name: "Investimento mensal",
+        value: values.goal,
+        status: values.goal > 0 ? "active" : "paused",
+      }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vault });

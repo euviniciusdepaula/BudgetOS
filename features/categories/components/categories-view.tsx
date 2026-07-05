@@ -1,20 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Tags, Trash2, TrendingUp, Sparkles } from "lucide-react";
+import { Plus, Tags, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PageHeader } from "@/components/layout/page-header";
 import { CategoryDialog } from "@/components/shared/category-dialog";
+import { CategoryCard } from "@/components/shared/category-card";
+import { CategoryDetailDialog } from "@/components/shared/category-detail-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useCategories } from "@/hooks/use-categories";
 import { useCategoryMutations } from "@/hooks/use-category-mutations";
 import { useCurrentMonth } from "@/hooks/use-current-month";
 import { useBudgets } from "@/hooks/use-budgets";
 import { useTransactions } from "@/hooks/use-transactions";
-import { formatCurrency, formatDate } from "@/utils/format";
-import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/format";
 import type { Category, BudgetWithCategory, TransactionWithCategory } from "@/types/domain";
+
+type FilterType = "all" | "has_spent" | "no_spent" | "near_limit" | "exceeded";
+type SortType = "remaining_desc" | "spent_desc" | "most_used" | "alphabetical";
 
 export function CategoriesView() {
   const { data: categories } = useCategories();
@@ -25,8 +36,14 @@ export function CategoriesView() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
+  
+  // Category Details dialog state
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  const list = categories ?? [];
+  // Filters & Sorting state
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [sortBy, setSortBy] = useState<SortType>("remaining_desc");
 
   // Group budgets by category_id for fast lookup
   const budgetMap = useMemo(() => {
@@ -50,6 +67,103 @@ export function CategoriesView() {
     return map;
   }, [transactions]);
 
+  // Calculations for summary stats panel
+  const summaryStats = useMemo(() => {
+    let totalDistributed = 0;
+    let totalSpent = 0;
+    let totalRemaining = 0; // Clamped remaining to positive numbers to accurately reflect remaining alocation
+    
+    for (const b of budgets ?? []) {
+      totalDistributed += b.current_limit;
+      totalSpent += b.spent;
+      totalRemaining += Math.max(0, b.remaining);
+    }
+
+    // Default categories limits if budgets is empty (e.g. month not opened yet)
+    if ((budgets ?? []).length === 0 && (categories ?? []).length > 0) {
+      for (const c of categories ?? []) {
+        totalDistributed += c.default_limit;
+        totalRemaining += c.default_limit;
+      }
+    }
+
+    const freeMoney = (month?.available_balance ?? 0) - totalRemaining;
+
+    return {
+      totalDistributed,
+      totalSpent,
+      totalRemaining,
+      freeMoney,
+    };
+  }, [budgets, categories, month?.available_balance]);
+
+  // Process list with filter and sorting
+  const processedCategories = useMemo(() => {
+    let result = [...(categories ?? [])];
+
+    // 1. Filtering
+    if (filter !== "all") {
+      result = result.filter((category) => {
+        const budget = budgetMap.get(category.id);
+        const limit = budget ? budget.current_limit : category.default_limit;
+        const spent = budget ? budget.spent : 0;
+        const ratio = limit > 0 ? spent / limit : 0;
+
+        switch (filter) {
+          case "has_spent":
+            return spent > 0;
+          case "no_spent":
+            return spent === 0;
+          case "near_limit":
+            return ratio >= 0.85 && ratio <= 1.0;
+          case "exceeded":
+            return spent > limit;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // 2. Sorting
+    result.sort((a, b) => {
+      const budgetA = budgetMap.get(a.id);
+      const budgetB = budgetMap.get(b.id);
+
+      const limitA = budgetA ? budgetA.current_limit : a.default_limit;
+      const limitB = budgetB ? budgetB.current_limit : b.default_limit;
+
+      const spentA = budgetA ? budgetA.spent : 0;
+      const spentB = budgetB ? budgetB.spent : 0;
+
+      const remainingA = budgetA ? budgetA.remaining : limitA;
+      const remainingB = budgetB ? budgetB.remaining : limitB;
+
+      switch (sortBy) {
+        case "remaining_desc":
+          return remainingB - remainingA;
+        case "spent_desc":
+          return spentB - spentA;
+        case "most_used": {
+          const countA = (transactionsMap.get(a.id) ?? []).length;
+          const countB = (transactionsMap.get(b.id) ?? []).length;
+          return countB - countA;
+        }
+        case "alphabetical":
+          return a.name.localeCompare(b.name, "pt-BR");
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [categories, filter, sortBy, budgetMap, transactionsMap]);
+
+  const handleDeleteCategory = (id: string, name: string) => {
+    if (window.confirm(`Deseja realmente excluir a categoria ${name}?`)) {
+      remove.mutate(id);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -68,158 +182,169 @@ export function CategoriesView() {
         </Button>
       </PageHeader>
 
-      {list.length === 0 ? (
+      {/* Summary Stats Panel */}
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Card className="border-border/40 bg-accent/5">
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Total Distribuído
+            </p>
+            <span className="text-xl font-bold tracking-tight text-foreground/90 mt-2 tabular-nums">
+              {formatCurrency(summaryStats.totalDistributed)}
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/40 bg-rose-500/5">
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[10px] font-bold text-rose-400/90 uppercase tracking-wider">
+              Gasto nas Categorias
+            </p>
+            <span className="text-xl font-bold tracking-tight text-rose-400 mt-2 tabular-nums">
+              {formatCurrency(summaryStats.totalSpent)}
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/40 bg-primary/5">
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[10px] font-bold text-primary uppercase tracking-wider">
+              Restante nas Categorias
+            </p>
+            <span className="text-xl font-bold tracking-tight text-primary mt-2 tabular-nums">
+              {formatCurrency(summaryStats.totalRemaining)}
+            </span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/40 bg-emerald-500/5">
+          <CardContent className="p-4 flex flex-col justify-between h-full">
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+              Dinheiro Livre
+            </p>
+            <span className="text-xl font-bold tracking-tight text-emerald-400 mt-2 tabular-nums">
+              {formatCurrency(summaryStats.freeMoney)}
+            </span>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filter and Sorting Controls */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <span className="text-xs font-semibold text-muted-foreground block mb-1">Filtrar por</span>
+          <Select
+            value={filter}
+            onValueChange={(v) => setFilter(v as FilterType)}
+          >
+            <SelectTrigger className="sm:w-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              <SelectItem value="has_spent">Com gasto</SelectItem>
+              <SelectItem value="no_spent">Sem gasto</SelectItem>
+              <SelectItem value="near_limit">Perto do limite (≥ 85%)</SelectItem>
+              <SelectItem value="exceeded">Estouradas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="shrink-0">
+          <span className="text-xs font-semibold text-muted-foreground block mb-1">Ordenar por</span>
+          <Select
+            value={sortBy}
+            onValueChange={(v) => setSortBy(v as SortType)}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="remaining_desc">Maior restante</SelectItem>
+              <SelectItem value="spent_desc">Maior gasto</SelectItem>
+              <SelectItem value="most_used">Mais usado</SelectItem>
+              <SelectItem value="alphabetical">Alfabética</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Categories Grid list */}
+      {(categories ?? []).length === 0 ? (
         <EmptyState
           icon={Tags}
           title="Nenhuma categoria criada"
           description="Crie categorias para gerenciar seus gastos. Os limites definidos aqui servem como teto de controle mensal."
         />
+      ) : processedCategories.length === 0 ? (
+        <p className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground bg-card/20">
+          Nenhuma categoria atende aos filtros atuais.
+        </p>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          {list.map((category) => {
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {processedCategories.map((category) => {
             const budget = budgetMap.get(category.id);
             const limit = budget ? budget.current_limit : category.default_limit;
             const spent = budget ? budget.spent : 0;
             const remaining = budget ? budget.remaining : limit;
-            
-            const ratio = limit > 0 ? spent / limit : 0;
-            const progressWidth = Math.min(ratio * 100, 100);
-            const over = spent > limit;
-
-            const categoryTx = (transactionsMap.get(category.id) ?? []).slice(0, 3);
-
-            // Generated insights
-            let trendLabel = "Consumo estável";
-            let insight = "Você costuma terminar o mês com saldo positivo nesta categoria.";
-            if (over) {
-              trendLabel = "Limite ultrapassado";
-              insight = `Gastos acima do planejado em ${formatCurrency(spent - limit)}.`;
-            } else if (ratio >= 0.85) {
-              trendLabel = "Atenção: limite próximo";
-              insight = "Restam poucos créditos para o fim do mês.";
-            }
 
             return (
-              <Card key={category.id} className="overflow-hidden border-border/40 hover:border-border/80 transition-colors shadow-sm duration-300">
-                <CardContent className="p-6 space-y-6">
-                  {/* Category Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-card text-xl">
-                        {category.emoji}
-                      </span>
-                      <div>
-                        <h3 className="font-semibold text-foreground/90">{category.name}</h3>
-                        <p className="text-xs text-muted-foreground">Padrão: {formatCurrency(category.default_limit)}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Editar"
-                        onClick={() => {
-                          setEditing(category);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <Pencil className="size-4 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Excluir"
-                        onClick={() => {
-                          if (window.confirm(`Deseja realmente excluir a categoria ${category.name}?`)) {
-                            remove.mutate(category.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Financial Stats */}
-                  <div className="grid grid-cols-3 gap-2 py-1 bg-accent/30 rounded-xl px-4 py-3 text-center">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Limite</p>
-                      <p className="text-sm font-semibold tabular-nums mt-0.5">{formatCurrency(limit)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Gasto</p>
-                      <p className={cn("text-sm font-semibold tabular-nums mt-0.5", over ? "text-rose-400" : "text-foreground")}>{formatCurrency(spent)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Restante</p>
-                      <p className="text-sm font-semibold tabular-nums mt-0.5 text-primary">{formatCurrency(remaining)}</p>
-                    </div>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="space-y-1.5">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-accent/60">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          over ? "bg-rose-500" : ratio >= 0.85 ? "bg-amber-500" : "bg-emerald-500"
-                        )}
-                        style={{ width: `${progressWidth}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-[11px] text-muted-foreground">
-                      <span>{Math.round(ratio * 100)}% consumido</span>
-                      {over && <span className="text-rose-400 font-semibold">Ultrapassado</span>}
-                    </div>
-                  </div>
-
-                  {/* Recent Transactions */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Últimos lançamentos</p>
-                    {categoryTx.length === 0 ? (
-                      <p className="text-xs text-muted-2 italic py-1">Nenhuma transação registrada neste mês.</p>
-                    ) : (
-                      <div className="divide-y divide-border/10 rounded-lg border border-border/20 bg-background/50 px-3 py-1">
-                        {categoryTx.map((tx) => (
-                          <div key={tx.id} className="flex justify-between py-2 text-xs">
-                            <span className="truncate text-muted-foreground font-medium max-w-[150px]">{tx.description || "Gasto"}</span>
-                            <div className="flex items-center gap-2 font-semibold tabular-nums">
-                              <span>{formatCurrency(tx.amount)}</span>
-                              <span className="text-[10px] text-muted-2 font-normal">{formatDate(`${tx.date}T00:00:00`)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Trends & Insights */}
-                  <div className="pt-3 border-t border-border/10 flex gap-2 items-start text-xs text-muted-foreground leading-normal">
-                    <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold text-foreground/80 block mb-0.5">{trendLabel}</span>
-                      <p className="font-medium">{insight}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <CategoryCard
+                key={category.id}
+                category={category}
+                limit={limit}
+                spent={spent}
+                remaining={remaining}
+                onClick={() => {
+                  setSelectedCategory(category);
+                  setDetailOpen(true);
+                }}
+              />
             );
           })}
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Categorias não reservam dinheiro — são apenas limites de controle.
-        Alterações de limites padrão valem a partir do próximo mês aberto.
-      </p>
+      {/* Rule Callout */}
+      <div className="flex gap-2.5 items-start rounded-xl border border-border/40 bg-accent/5 p-4 text-xs text-muted-foreground leading-relaxed">
+        <span className="font-semibold text-foreground">💡 Regra Importante:</span>
+        <span>
+          Categorias são apenas envelopes de planejamento. Elas <strong>NÃO</strong> prendem ou bloqueiam dinheiro.
+          Planejado ≠ dinheiro bloqueado.
+        </span>
+      </div>
 
       <CategoryDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         category={editing}
-        nextSortOrder={list.length}
+        nextSortOrder={(categories ?? []).length}
       />
+
+      {selectedCategory && (
+        <CategoryDetailDialog
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          category={selectedCategory}
+          limit={
+            budgetMap.get(selectedCategory.id)?.current_limit ??
+            selectedCategory.default_limit
+          }
+          spent={budgetMap.get(selectedCategory.id)?.spent ?? 0}
+          remaining={
+            budgetMap.get(selectedCategory.id)?.remaining ??
+            selectedCategory.default_limit
+          }
+          transactions={transactionsMap.get(selectedCategory.id) ?? []}
+          onEdit={() => {
+            setEditing(selectedCategory);
+            setDialogOpen(true);
+          }}
+          onDelete={() => {
+            handleDeleteCategory(selectedCategory.id, selectedCategory.name);
+          }}
+        />
+      )}
     </div>
   );
 }
-

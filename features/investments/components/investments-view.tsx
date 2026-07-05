@@ -33,10 +33,20 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useVault } from "@/hooks/use-vault";
 import { useCurrentMonth } from "@/hooks/use-current-month";
 import { monthRepository } from "@/services/repositories/month-repository";
+import { vaultRepository } from "@/services/repositories/vault-repository";
+import { monthService } from "@/services/month-service";
 import { queryKeys } from "@/lib/query-keys";
 import { formatCurrency, parseCurrencyInput } from "@/utils/format";
 import { cn } from "@/lib/utils";
 import { InvestmentDialog } from "@/components/shared/investment-dialog";
+
+interface RecurringInvestment {
+  name: string;
+  value: number;
+  status: "active" | "paused";
+}
+
+const RECURRING_STORAGE_KEY = "budgetos.recurring-investment";
 
 interface Reserve {
   id: string;
@@ -75,6 +85,108 @@ export function InvestmentsView() {
   const [reserveName, setReserveName] = useState("");
   const [reserveTarget, setReserveTarget] = useState("");
   const [reserveCurrent, setReserveCurrent] = useState("");
+
+  // Recurring investment state
+  const [recurringInvestment, setRecurringInvestment] = useState<RecurringInvestment | null>(null);
+  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
+  const [recurringName, setRecurringName] = useState("");
+  const [recurringValue, setRecurringValue] = useState("");
+
+  // Initialize/sync recurring investment from localStorage / vault
+  useEffect(() => {
+    const raw = window.localStorage.getItem(RECURRING_STORAGE_KEY);
+    if (raw) {
+      try {
+        setRecurringInvestment(JSON.parse(raw));
+      } catch {
+        // Fallback below
+      }
+    } else if (vault) {
+      const initial: RecurringInvestment = {
+        name: "Investimento mensal",
+        value: vault.investment_goal,
+        status: vault.investment_goal > 0 ? "active" : "paused",
+      };
+      setRecurringInvestment(initial);
+      window.localStorage.setItem(RECURRING_STORAGE_KEY, JSON.stringify(initial));
+    }
+  }, [vault]);
+
+  // Mutation to update vault and current month goal
+  const updateGoalMutation = useMutation({
+    mutationFn: async ({ value, status }: { value: number; status: "active" | "paused" }) => {
+      if (!vault) throw new Error("Vault não encontrado.");
+      const effectiveGoal = status === "active" ? value : 0;
+      await Promise.all([
+        vaultRepository.updateInvestmentGoal(vault.id, effectiveGoal),
+        ...(currentMonth ? [monthService.updateCurrentMonthInvestmentGoal(effectiveGoal)] : []),
+      ]);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.vault });
+      queryClient.invalidateQueries({ queryKey: queryKeys.currentMonth });
+      queryClient.invalidateQueries({ queryKey: queryKeys.months });
+    },
+    onError: (error: any) => toast.error(error.message),
+  });
+
+  const toggleRecurringStatus = () => {
+    if (!recurringInvestment) return;
+    const newStatus = (recurringInvestment.status === "active" ? "paused" : "active") as "active" | "paused";
+    const updated = { ...recurringInvestment, status: newStatus };
+    setRecurringInvestment(updated);
+    window.localStorage.setItem(RECURRING_STORAGE_KEY, JSON.stringify(updated));
+    updateGoalMutation.mutate({ value: recurringInvestment.value, status: newStatus });
+    toast.success(newStatus === "active" ? "Investimento recorrente ativado." : "Investimento recorrente pausado.");
+  };
+
+  const handleDeleteRecurring = () => {
+    if (window.confirm("Deseja realmente excluir o investimento recorrente?")) {
+      const updated: RecurringInvestment = { name: "Investimento mensal", value: 0, status: "paused" };
+      setRecurringInvestment(updated);
+      window.localStorage.setItem(RECURRING_STORAGE_KEY, JSON.stringify(updated));
+      updateGoalMutation.mutate({ value: 0, status: "paused" });
+      toast.success("Investimento recorrente excluído.");
+    }
+  };
+
+  const openEditRecurring = () => {
+    if (!recurringInvestment) return;
+    setRecurringName(recurringInvestment.name);
+    setRecurringValue(String(recurringInvestment.value));
+    setRecurringDialogOpen(true);
+  };
+
+  const openCreateRecurring = () => {
+    setRecurringName("Investimento mensal");
+    setRecurringValue("");
+    setRecurringDialogOpen(true);
+  };
+
+  const handleSubmitRecurring = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recurringName.trim() || !recurringValue) {
+      toast.error("Preencha todos os campos.");
+      return;
+    }
+    const val = parseCurrencyInput(recurringValue);
+    if (Number.isNaN(val) || val < 0) {
+      toast.error("Informe um valor válido.");
+      return;
+    }
+
+    const updated: RecurringInvestment = {
+      name: recurringName,
+      value: val,
+      status: "active",
+    };
+
+    setRecurringInvestment(updated);
+    window.localStorage.setItem(RECURRING_STORAGE_KEY, JSON.stringify(updated));
+    updateGoalMutation.mutate({ value: val, status: "active" });
+    setRecurringDialogOpen(false);
+    toast.success("Investimento recorrente salvo com sucesso.");
+  };
 
   // Load reserves on mount
   useEffect(() => {
@@ -271,6 +383,75 @@ export function InvestmentsView() {
         <span className="font-medium">{aiInsight}</span>
       </div>
 
+      {/* Investimento Recorrente */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold">Investimento Recorrente</h2>
+          <p className="text-xs text-muted-foreground">
+            O investimento configurado como padrão para ser separado no início de cada mês.
+          </p>
+        </div>
+
+        {!recurringInvestment || recurringInvestment.value === 0 ? (
+          <div className="rounded-xl border border-dashed p-6 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">Nenhum investimento recorrente cadastrado.</p>
+            <Button size="sm" variant="outline" onClick={openCreateRecurring}>
+              <PlusCircle className="size-4 mr-1.5" />
+              Cadastrar investimento recorrente
+            </Button>
+          </div>
+        ) : (
+          <Card className="border-border/40 hover:border-border/80 transition-colors shadow-sm duration-300">
+            <CardContent className="p-5 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div className="flex items-start gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-card text-xl">
+                  💰
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-foreground/90">{recurringInvestment.name}</h3>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border",
+                        recurringInvestment.status === "active"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      )}
+                    >
+                      {recurringInvestment.status === "active" ? "Ativo" : "Pausado"}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-primary mt-1 tabular-nums">
+                    {formatCurrency(recurringInvestment.value)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {recurringInvestment.status === "active"
+                      ? "Todo mês esse valor é separado automaticamente."
+                      : "Esse valor está pausado e não será separado."}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="outline" onClick={openEditRecurring}>
+                  Editar
+                </Button>
+                <Button size="sm" variant="outline" onClick={toggleRecurringStatus}>
+                  {recurringInvestment.status === "active" ? "Pausar" : "Ativar"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={handleDeleteRecurring}
+                >
+                  Excluir
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
       {/* Multiple Reserves Workspace */}
       <section className="space-y-4">
         <div>
@@ -412,6 +593,45 @@ export function InvestmentsView() {
               </Button>
               <Button type="submit">
                 {editingReserve ? "Salvar" : "Criar Reserva"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={recurringDialogOpen} onOpenChange={setRecurringDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Investimento Recorrente</DialogTitle>
+            <DialogDescription>
+              Configure o investimento recorrente mensal padrão.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitRecurring} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="recurring-name">Nome do Investimento</Label>
+              <Input
+                id="recurring-name"
+                placeholder="Ex.: Investimento mensal"
+                value={recurringName}
+                onChange={(e) => setRecurringName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="recurring-value">Valor Mensal (R$)</Label>
+              <Input
+                id="recurring-value"
+                placeholder="1.500,00"
+                value={recurringValue}
+                onChange={(e) => setRecurringValue(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setRecurringDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateGoalMutation.isPending}>
+                Salvar
               </Button>
             </DialogFooter>
           </form>

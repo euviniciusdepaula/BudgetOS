@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowDownUp,
   ArrowDownLeft,
   ArrowUpRight,
   History,
@@ -33,13 +32,26 @@ import { formatCurrency, formatDate } from "@/utils/format";
 import type { TransactionWithCategory } from "@/types/domain";
 
 const ALL_CATEGORIES = "all";
+
 const periods = [
   { value: "month", label: "Mês inteiro" },
-  { value: "7d", label: "Últimos 7 dias" },
+  { value: "7d", label: "Esta semana" },
   { value: "today", label: "Hoje" },
+  { value: "custom", label: "Personalizado" },
 ];
 
-function periodRange(period: string): { from?: string; to?: string } {
+const sortOptions = [
+  { value: "date-desc", label: "Mais recentes" },
+  { value: "date-asc", label: "Mais antigos" },
+  { value: "amount-desc", label: "Maior gasto" },
+  { value: "amount-asc", label: "Menor gasto" },
+];
+
+function periodRange(
+  period: string,
+  customFrom?: string,
+  customTo?: string
+): { from?: string; to?: string } {
   const today = new Date();
   const iso = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -50,6 +62,9 @@ function periodRange(period: string): { from?: string; to?: string } {
     const from = new Date(today);
     from.setDate(from.getDate() - 6);
     return { from: iso(from), to: iso(today) };
+  }
+  if (period === "custom") {
+    return { from: customFrom || undefined, to: customTo || undefined };
   }
   return {};
 }
@@ -180,18 +195,24 @@ export function HistoryView() {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL_CATEGORIES);
   const [period, setPeriod] = useState("month");
-  const [ascending, setAscending] = useState(false);
+  
+  // Custom period states
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  // Sort state
+  const [sortBy, setSortBy] = useState("date-desc");
 
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-  const range = periodRange(period);
+  const range = useMemo(() => periodRange(period, customFrom, customTo), [period, customFrom, customTo]);
+
   const { data: transactions, isLoading } = useTransactions(month?.id, {
     categoryId: categoryId === ALL_CATEGORIES ? undefined : categoryId,
     search: search.trim() || undefined,
     from: range.from,
     to: range.to,
-    ascending,
   });
 
   const categoryItems = useMemo(
@@ -205,16 +226,38 @@ export function HistoryView() {
     [categories]
   );
 
+  const sortedTransactions = useMemo(() => {
+    const list = [...(transactions ?? [])];
+    list.sort((a, b) => {
+      if (sortBy === "amount-desc") {
+        return b.amount - a.amount;
+      }
+      if (sortBy === "amount-asc") {
+        return a.amount - b.amount;
+      }
+      if (sortBy === "date-asc") {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      }
+      // date-desc (default)
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+    return list;
+  }, [transactions, sortBy]);
+
+  const isSortedByAmount = sortBy.startsWith("amount");
+
   const groups = useMemo(() => {
+    if (isSortedByAmount) return [];
+
     const byPeriod = new Map<string, TransactionWithCategory[]>();
-    for (const t of transactions ?? []) {
+    for (const t of sortedTransactions) {
       const label = getRelativePeriodLabel(t.date);
       const list = byPeriod.get(label) ?? [];
       list.push(t);
       byPeriod.set(label, list);
     }
     return Array.from(byPeriod.entries());
-  }, [transactions]);
+  }, [sortedTransactions, isSortedByAmount]);
 
   return (
     <div className="space-y-8">
@@ -224,6 +267,7 @@ export function HistoryView() {
       />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {/* Search */}
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -233,6 +277,8 @@ export function HistoryView() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
+        {/* Category Filter */}
         <Select
           items={categoryItems}
           value={categoryId}
@@ -249,6 +295,8 @@ export function HistoryView() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Period Filter */}
         <Select
           items={periods}
           value={period}
@@ -265,15 +313,48 @@ export function HistoryView() {
             ))}
           </SelectContent>
         </Select>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setAscending((v) => !v)}
+
+        {/* Sort select dropdown */}
+        <Select
+          value={sortBy}
+          onValueChange={(v) => { if (v) setSortBy(v); }}
         >
-          <ArrowDownUp />
-          {ascending ? "Mais antigos" : "Mais recentes"}
-        </Button>
+          <SelectTrigger className="sm:w-44">
+            <SelectValue placeholder="Ordenar por..." />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Date Pickers for Custom Period */}
+      {period === "custom" && (
+        <div className="flex items-center gap-2 mt-2 sm:mt-0 p-3 rounded-lg border bg-accent/10 border-border/40 w-fit">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">De:</span>
+            <Input
+              type="date"
+              className="w-36 h-9 py-1"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Até:</span>
+            <Input
+              type="date"
+              className="w-36 h-9 py-1"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-2">
@@ -281,13 +362,39 @@ export function HistoryView() {
           <Skeleton className="h-16 rounded-xl" />
           <Skeleton className="h-16 rounded-xl" />
         </div>
-      ) : groups.length === 0 ? (
+      ) : sortedTransactions.length === 0 ? (
         <EmptyState
           icon={History}
           title="Nenhum lançamento encontrado"
           description="Registre um gasto na Home ou ajuste os filtros acima."
         />
+      ) : isSortedByAmount ? (
+        /* Flat list display for amount-based sorting */
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Ordenado por valor
+          </h3>
+          <div className="divide-y rounded-xl border bg-card">
+            {sortedTransactions.map((transaction) => (
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                onEdit={() => {
+                  setEditingTransaction(transaction);
+                  setEditDialogOpen(true);
+                }}
+                onDelete={() => {
+                  if (window.confirm("Deseja realmente excluir este lançamento?")) {
+                    remove.mutate(transaction.id);
+                  }
+                }}
+                deletePending={remove.isPending && remove.variables === transaction.id}
+              />
+            ))}
+          </div>
+        </div>
       ) : (
+        /* Grouped list display for date-based sorting */
         <div className="space-y-6">
           {groups.map(([periodLabel, items]) => (
             <section key={periodLabel}>
@@ -325,4 +432,3 @@ export function HistoryView() {
     </div>
   );
 }
-

@@ -61,6 +61,11 @@ export function SettingsView() {
         vaultRepository.updateInvestmentGoal(vault.id, value),
         monthService.updateCurrentMonthInvestmentGoal(value),
       ]);
+      window.localStorage.setItem("budgetos.recurring-investment", JSON.stringify({
+        name: "Investimento mensal",
+        value: value,
+        status: value > 0 ? "active" : "paused",
+      }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.vault });
