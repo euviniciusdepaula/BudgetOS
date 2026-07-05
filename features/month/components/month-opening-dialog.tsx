@@ -157,6 +157,12 @@ export function MonthOpeningDialog() {
                 − {formatCurrency(preview.reserved_fixed_expenses)}
               </dd>
             </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Reserva de investimento</dt>
+              <dd className="tabular-nums">
+                − {formatCurrency(preview.reserved_investment)}
+              </dd>
+            </div>
             <div className="flex justify-between pt-1 font-medium">
               <dt>Disponível para gastar</dt>
               <dd className="tabular-nums text-emerald-400">
