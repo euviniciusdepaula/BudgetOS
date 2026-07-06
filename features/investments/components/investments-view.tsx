@@ -34,6 +34,7 @@ import { useVault } from "@/hooks/use-vault";
 import { useCurrentMonth } from "@/hooks/use-current-month";
 import { monthRepository } from "@/services/repositories/month-repository";
 import { vaultRepository } from "@/services/repositories/vault-repository";
+import { investmentRepository } from "@/services/repositories/investment-repository";
 import { monthService } from "@/services/month-service";
 import { queryKeys } from "@/lib/query-keys";
 import { formatCurrency, parseCurrencyInput } from "@/utils/format";
@@ -73,6 +74,11 @@ export function InvestmentsView() {
   const { data: allMonths, isLoading: monthsLoading } = useQuery({
     queryKey: queryKeys.months,
     queryFn: () => monthRepository.list(),
+  });
+
+  const { data: allInvestments } = useQuery({
+    queryKey: ["investments"],
+    queryFn: () => investmentRepository.listAll(),
   });
 
   // Multiple Reserves state stored in localStorage
@@ -238,9 +244,18 @@ export function InvestmentsView() {
     return { streak, accumulated, history: chronological };
   }, [allMonths, vault]);
 
+  const currentMonthInvested = useMemo(() => {
+    if (!currentMonth || !allInvestments) return 0;
+    return allInvestments
+      .filter((inv) => inv.month_id === currentMonth.id)
+      .reduce((sum, inv) => sum + inv.amount, 0);
+  }, [currentMonth, allInvestments]);
+
   const totalAccumulated = useMemo(() => {
-    return reserves.reduce((sum, r) => sum + r.current, 0);
-  }, [reserves]);
+    const dbTotal = allInvestments?.reduce((sum, inv) => sum + inv.amount, 0) || 0;
+    const localTotal = reserves.reduce((sum, r) => sum + r.current, 0);
+    return Math.max(dbTotal, localTotal);
+  }, [allInvestments, reserves]);
 
   // Create or edit reserve
   const handleSubmitReserve = (e: React.FormEvent) => {
@@ -353,7 +368,7 @@ export function InvestmentsView() {
           <CardContent className="p-5 flex flex-col justify-between h-full">
             <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Aporte Deste Mês</p>
             <span className="text-2xl font-bold tracking-tight text-emerald-400 mt-3 tabular-nums">
-              {formatCurrency(currentMonth?.reserved_investment ?? 0)}
+              {formatCurrency(currentMonthInvested)}
             </span>
           </CardContent>
         </Card>

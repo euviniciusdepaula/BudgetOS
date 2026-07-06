@@ -68,6 +68,7 @@ export function InvestmentDialog({
       queryClient.invalidateQueries({ queryKey: queryKeys.currentMonth });
       queryClient.invalidateQueries({ queryKey: queryKeys.transactions(month.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.months });
+      queryClient.invalidateQueries({ queryKey: ["investments"] });
       toast.success("Aporte de investimento registrado com sucesso!");
       form.reset({
         amount: "",

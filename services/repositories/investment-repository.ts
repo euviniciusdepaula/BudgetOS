@@ -11,6 +11,14 @@ export const investmentRepository = {
     return data || [];
   },
 
+  async listAll(): Promise<Investment[]> {
+    const { data, error } = await createClient()
+      .from("investments")
+      .select("*");
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
   async create(input: {
     month_id: string;
     amount: number;
