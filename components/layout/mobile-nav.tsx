@@ -1,10 +1,28 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Wallet,
+  Tags,
+  Plus,
+  Sparkles,
+  Menu,
+  History,
+  Repeat,
+  TrendingUp,
+  Lightbulb,
+  Settings,
+  X,
+  PlusCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navigation } from "@/lib/navigation";
+import { useCurrentMonth } from "@/hooks/use-current-month";
+import { useBudgets } from "@/hooks/use-budgets";
+import { ExpenseDialog } from "@/features/home/components/expense-dialog";
+import { CategoryDialog } from "@/components/shared/category-dialog";
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -12,35 +30,229 @@ function isActive(pathname: string, href: string) {
 
 export function MobileNav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [maisOpen, setMaisOpen] = useState(false);
+
+  // Modal dialog states
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+
+  const { data: month } = useCurrentMonth();
+  const { data: budgets } = useBudgets(month?.id);
+
+  const activeTabs = [
+    { label: "Hoje", href: "/", icon: Wallet },
+    { label: "Categorias", href: "/categorias", icon: Tags },
+  ];
+
+  const extraItems = [
+    { label: "Histórico", href: "/historico", icon: History },
+    { label: "Gastos Fixos", href: "/gastos-fixos", icon: Repeat },
+    { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
+    { label: "Insights", href: "/insights", icon: Lightbulb },
+    { label: "Configurações", href: "/configuracoes", icon: Settings },
+  ];
 
   return (
-    <header className="sticky top-0 z-30 border-b border-sidebar-border bg-sidebar/90 backdrop-blur md:hidden">
-      <div className="flex h-14 items-center gap-2.5 px-4">
-        <span className="flex size-6 items-center justify-center rounded-md bg-primary">
-          <Sparkles className="size-3.5 text-primary-foreground" />
-        </span>
-        <span className="text-sm font-semibold tracking-tight">BudgetOS</span>
-      </div>
-      <nav className="flex gap-1 overflow-x-auto px-3 pb-3 [scrollbar-width:none]">
-        {navigation.map((item) => {
-          const active = isActive(pathname, item.href);
+    <>
+      {/* Fixed Bottom Navigation (Mobile Only) */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-border/20 bg-background/80 backdrop-blur-xl md:hidden pb-[env(safe-area-inset-bottom,0px)] flex items-center justify-between px-6">
+        {/* Hoje & Categorias */}
+        {activeTabs.map((tab) => {
+          const active = isActive(pathname, tab.href);
           return (
             <Link
-              key={item.href}
-              href={item.href}
+              key={tab.href}
+              href={tab.href}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className="size-3.5" />
-              {item.label}
+              <tab.icon className="size-5" />
+              <span className="text-[9px] font-semibold tracking-wide uppercase">{tab.label}</span>
             </Link>
           );
         })}
+
+        {/* Central Plus button */}
+        <button
+          onClick={() => setPlusOpen(true)}
+          aria-label="Ações rápidas"
+          className="flex items-center justify-center size-12 rounded-full bg-emerald-500 text-background font-bold shadow-lg hover:bg-emerald-400 active:scale-90 transition-all -translate-y-2.5 border-4 border-background"
+        >
+          <Plus className="size-6" />
+        </button>
+
+        {/* Simulações */}
+        {(() => {
+          const active = isActive(pathname, "/simulacoes");
+          return (
+            <Link
+              href="/simulacoes"
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Sparkles className="size-5" />
+              <span className="text-[9px] font-semibold tracking-wide uppercase">Simular</span>
+            </Link>
+          );
+        })()}
+
+        {/* Mais Button */}
+        <button
+          onClick={() => setMaisOpen(true)}
+          className={cn(
+            "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
+            maisOpen ? "text-primary" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Menu className="size-5" />
+          <span className="text-[9px] font-semibold tracking-wide uppercase">Mais</span>
+        </button>
       </nav>
-    </header>
+
+      {/* Slide-up sheet overlays & menus */}
+      <AnimatePresence>
+        {/* Plus Button Menu Sheet */}
+        {plusOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPlusOpen(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed inset-x-0 bottom-0 z-50 rounded-t-[24px] bg-background border-t border-border/20 p-6 shadow-xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] md:hidden flex flex-col space-y-4"
+            >
+              <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 shrink-0" />
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-base text-foreground">Ações Rápidas</h3>
+                <button onClick={() => setPlusOpen(false)} className="text-muted-foreground p-1 hover:text-foreground">
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  onClick={() => {
+                    setPlusOpen(false);
+                    setExpenseOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-[16px] border border-border/40 bg-card p-4 font-semibold text-sm hover:bg-accent/40 active:scale-98 transition-all"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                    <PlusCircle className="size-4" />
+                  </span>
+                  Novo gasto
+                </button>
+
+                <button
+                  onClick={() => {
+                    setPlusOpen(false);
+                    router.push("/simulacoes");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-[16px] border border-border/40 bg-card p-4 font-semibold text-sm hover:bg-accent/40 active:scale-98 transition-all"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Sparkles className="size-4" />
+                  </span>
+                  Simular compra
+                </button>
+
+                <button
+                  onClick={() => {
+                    setPlusOpen(false);
+                    setCategoryOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-[16px] border border-border/40 bg-card p-4 font-semibold text-sm hover:bg-accent/40 active:scale-98 transition-all"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                    <Tags className="size-4" />
+                  </span>
+                  Nova categoria
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+
+        {/* Mais Menu Sheet */}
+        {maisOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMaisOpen(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed inset-x-0 bottom-0 z-50 rounded-t-[24px] bg-background border-t border-border/20 p-6 shadow-xl pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] md:hidden flex flex-col space-y-4"
+            >
+              <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 shrink-0" />
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-base text-foreground">Mais Opções</h3>
+                <button onClick={() => setMaisOpen(false)} className="text-muted-foreground p-1 hover:text-foreground">
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                {extraItems.map((item) => {
+                  const active = isActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMaisOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-[16px] border p-4 font-medium text-xs transition-all active:scale-98",
+                        active
+                          ? "border-primary/20 bg-primary/8 text-primary font-semibold"
+                          : "border-border/40 bg-card hover:bg-accent/40 text-foreground/80"
+                      )}
+                    >
+                      <item.icon className="size-4 shrink-0" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Global Action Modals */}
+      {month && (
+        <ExpenseDialog
+          open={expenseOpen}
+          onOpenChange={setExpenseOpen}
+          month={month}
+          categories={(budgets ?? []).map((b) => b.category)}
+        />
+      )}
+
+      <CategoryDialog
+        open={categoryOpen}
+        onOpenChange={setCategoryOpen}
+        category={null}
+      />
+    </>
   );
 }

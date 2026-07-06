@@ -281,7 +281,7 @@ export function CategoriesView() {
           Nenhuma categoria atende aos filtros atuais.
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {processedCategories.map((category) => {
             const budget = budgetMap.get(category.id);
             const limit = budget ? budget.current_limit : category.default_limit;

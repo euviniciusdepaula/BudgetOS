@@ -121,9 +121,9 @@ export function HomeView() {
   if (!month) return null; // MonthGate garante o mês antes de renderizar.
 
   return (
-    <div className="space-y-10">
-      {/* 1 — Header Financeiro (Estilo Wallet Digital) */}
-      <header className="flex flex-col gap-6 py-4 border-b border-border/20 pb-8">
+    <div className="space-y-6 md:space-y-10">
+      {/* 1 — Header Financeiro (Estilo Wallet Digital) - DESKTOP */}
+      <header className="hidden md:flex flex-col gap-6 py-4 border-b border-border/20 pb-8">
         <div className="space-y-4">
           <p className="text-sm font-medium text-muted-foreground">
             {getGreeting()}, <span className="font-semibold text-sidebar-foreground">{vault?.name || "usuário"}</span>
@@ -199,6 +199,84 @@ export function HomeView() {
             <span>
               Investimentos: <span className="text-foreground font-semibold tabular-nums">{format(totalInvestments)}</span>
             </span>
+          </div>
+        </div>
+      </header>
+
+      {/* 1 — Header Financeiro (Estilo Banco Compacto) - MOBILE */}
+      <header className="flex md:hidden flex-col gap-5 py-2 border-b border-border/10 pb-6">
+        <div className="space-y-4">
+          {/* Saudação e Olhinho */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">
+              {getGreeting()}, <span className="font-semibold text-foreground">{vault?.name || "usuário"}</span>
+            </p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={hidden ? "Mostrar saldos" : "Ocultar saldos"}
+              onClick={toggleHidden}
+              className="text-muted-foreground hover:text-foreground h-8 w-8 shrink-0"
+            >
+              {hidden ? <EyeOff className="size-4.5" /> : <Eye className="size-4.5" />}
+            </Button>
+          </div>
+
+          {/* Saldo Disponível Compacto */}
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Disponível para gastar
+            </p>
+            <p className="text-3xl font-bold tracking-tight text-primary tabular-nums">
+              {format(month.available_balance)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              Depois das contas e investimentos
+            </p>
+          </div>
+
+          {/* Mini resumo horizontal com scroll */}
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none [scrollbar-width:none]">
+            {/* Saldo Bancário */}
+            <div className="flex-1 min-w-[125px] rounded-[18px] bg-accent/5 border border-border/20 p-3 space-y-1">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                Saldo
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Ajustar saldo"
+                  onClick={() => setAdjustOpen(true)}
+                  className="text-muted-2 hover:text-foreground h-4 w-4"
+                >
+                  <SlidersHorizontal className="size-3" />
+                </Button>
+              </span>
+              <p className="text-sm font-bold text-foreground tabular-nums">{format(month.bank_balance)}</p>
+            </div>
+
+            {/* Contas */}
+            <div className="flex-1 min-w-[115px] rounded-[18px] bg-accent/5 border border-border/20 p-3 space-y-1">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">Contas</span>
+              <p className="text-sm font-bold text-foreground/90 tabular-nums">{format(month.reserved_fixed_expenses)}</p>
+            </div>
+
+            {/* Investido */}
+            <div className="flex-1 min-w-[115px] rounded-[18px] bg-accent/5 border border-border/20 p-3 space-y-1">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">Investido</span>
+              <p className="text-sm font-bold text-foreground/90 tabular-nums">{format(totalInvestments)}</p>
+            </div>
+
+            {/* Distribuído */}
+            <div className="flex-1 min-w-[115px] rounded-[18px] bg-accent/5 border border-border/20 p-3 space-y-1">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">Planejado</span>
+              <p className="text-sm font-bold text-foreground/80 tabular-nums">{format(totalDistributed)}</p>
+            </div>
+
+            {/* Livre */}
+            <div className="flex-1 min-w-[115px] rounded-[18px] bg-emerald-500/5 border border-emerald-500/10 p-3 space-y-1">
+              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider block">Livre</span>
+              <p className="text-sm font-bold text-emerald-400 tabular-nums">{format(freeMoney)}</p>
+            </div>
           </div>
         </div>
       </header>
