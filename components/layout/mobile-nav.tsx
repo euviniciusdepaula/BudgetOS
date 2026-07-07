@@ -59,7 +59,10 @@ export function MobileNav() {
   return (
     <>
       {/* Fixed Bottom Navigation (Mobile Only) */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-border/20 bg-background/80 backdrop-blur-xl md:hidden pb-[env(safe-area-inset-bottom,0px)] flex items-center justify-between px-6">
+      <nav
+        className="fixed bottom-0 inset-x-0 z-40 border-t border-border/20 bg-background/80 backdrop-blur-xl md:hidden flex items-start justify-around px-2 pt-2 pb-[calc(4px+env(safe-area-inset-bottom,0px))] select-none"
+        style={{ height: "calc(64px + env(safe-area-inset-bottom, 0px))" }}
+      >
         {/* Hoje & Categorias */}
         {activeTabs.map((tab) => {
           const active = isActive(pathname, tab.href);
@@ -68,12 +71,12 @@ export function MobileNav() {
               key={tab.href}
               href={tab.href}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
+                "flex flex-col items-center justify-center gap-1 w-12 h-11 transition-all active:scale-95",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <tab.icon className="size-5" />
-              <span className="text-[9px] font-semibold tracking-wide uppercase">{tab.label}</span>
+              <tab.icon className="size-[21px]" />
+              <span className="text-[8px] font-bold tracking-wide uppercase leading-none">{tab.label}</span>
             </Link>
           );
         })}
@@ -82,7 +85,7 @@ export function MobileNav() {
         <button
           onClick={() => setPlusOpen(true)}
           aria-label="Ações rápidas"
-          className="flex items-center justify-center size-12 rounded-full bg-emerald-500 text-background font-bold shadow-lg hover:bg-emerald-400 active:scale-90 transition-all -translate-y-2.5 border-4 border-background"
+          className="flex items-center justify-center size-12 rounded-full bg-emerald-500 text-background font-bold shadow-lg hover:bg-emerald-400 active:scale-90 transition-all -translate-y-3.5 border-4 border-background shrink-0"
         >
           <Plus className="size-6" />
         </button>
@@ -94,12 +97,12 @@ export function MobileNav() {
             <Link
               href="/historico"
               className={cn(
-                "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
+                "flex flex-col items-center justify-center gap-1 w-12 h-11 transition-all active:scale-95",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <History className="size-5" />
-              <span className="text-[9px] font-semibold tracking-wide uppercase">Histórico</span>
+              <History className="size-[21px]" />
+              <span className="text-[8px] font-bold tracking-wide uppercase leading-none">Histórico</span>
             </Link>
           );
         })()}
@@ -108,12 +111,12 @@ export function MobileNav() {
         <button
           onClick={() => setMaisOpen(true)}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
+            "flex flex-col items-center justify-center gap-1 w-12 h-11 transition-all active:scale-95",
             maisOpen ? "text-primary" : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <Menu className="size-5" />
-          <span className="text-[9px] font-semibold tracking-wide uppercase">Mais</span>
+          <Menu className="size-[21px]" />
+          <span className="text-[8px] font-bold tracking-wide uppercase leading-none">Mais</span>
         </button>
       </nav>
 
