@@ -342,7 +342,7 @@ export function SimulationsView() {
                       <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
                         Selecione a Categoria Manualmente:
                       </span>
-                      <Select value={selectedCatId} onValueChange={(v) => { setSelectedCatId(v); setShowCategorySelector(false); }}>
+                      <Select value={selectedCatId} onValueChange={(v) => { if (v) { setSelectedCatId(v); setShowCategorySelector(false); } }}>
                         <SelectTrigger className="text-xs rounded-xl w-full">
                           <SelectValue placeholder="Escolha a categoria..." />
                         </SelectTrigger>
