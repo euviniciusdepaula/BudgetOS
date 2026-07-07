@@ -1,7 +1,38 @@
-import { applyFixedExpensePayment } from "@/lib/finance";
+import { applyFixedExpensePayment, round2, computeAvailable } from "@/lib/finance";
 import type { FixedExpense, Month } from "@/types/domain";
 import { monthRepository } from "./repositories/month-repository";
 import { paymentRepository } from "./repositories/payment-repository";
+import { fixedExpenseRepository } from "./repositories/fixed-expense-repository";
+import type { Database } from "@/types/database";
+
+type FixedExpenseInsert =
+  Database["public"]["Tables"]["fixed_expenses"]["Insert"];
+type FixedExpenseUpdate =
+  Database["public"]["Tables"]["fixed_expenses"]["Update"];
+
+async function syncMonthReservedFixedExpenses(monthId: string): Promise<void> {
+  const month = await monthRepository.findById(monthId);
+  if (!month) return;
+
+  const expenses = await fixedExpenseRepository.list();
+  const payments = await paymentRepository.listByMonth(monthId);
+  const paidIds = new Set(payments.map((p) => p.fixed_expense_id));
+
+  // Soma de todas as despesas fixas ativas e ainda não pagas neste mês
+  const unpaidTotal = expenses
+    .filter((e) => e.active && !paidIds.has(e.id))
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const roundedUnpaid = round2(unpaidTotal);
+  await monthRepository.update(monthId, {
+    reserved_fixed_expenses: roundedUnpaid,
+    available_balance: computeAvailable(
+      month.bank_balance,
+      roundedUnpaid,
+      month.reserved_investment
+    ),
+  });
+}
 
 export const fixedExpenseService = {
   /**
@@ -30,5 +61,32 @@ export const fixedExpenseService = {
       month.id,
       applyFixedExpensePayment(month, expense.amount, paid)
     );
+  },
+
+  async create(input: FixedExpenseInsert, currentMonthId: string | null): Promise<FixedExpense> {
+    const expense = await fixedExpenseRepository.create(input);
+    if (currentMonthId) {
+      await syncMonthReservedFixedExpenses(currentMonthId);
+    }
+    return expense;
+  },
+
+  async update(
+    id: string,
+    patch: FixedExpenseUpdate,
+    currentMonthId: string | null
+  ): Promise<FixedExpense> {
+    const expense = await fixedExpenseRepository.update(id, patch);
+    if (currentMonthId) {
+      await syncMonthReservedFixedExpenses(currentMonthId);
+    }
+    return expense;
+  },
+
+  async remove(id: string, currentMonthId: string | null): Promise<void> {
+    await fixedExpenseRepository.remove(id);
+    if (currentMonthId) {
+      await syncMonthReservedFixedExpenses(currentMonthId);
+    }
   },
 };

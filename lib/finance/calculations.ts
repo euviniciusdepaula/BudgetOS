@@ -121,11 +121,17 @@ export function applyInvestment(
   month: Pick<Month, keyof MonthBalances>,
   amount: number
 ): MonthBalances {
-  const reservedDeduction = Math.min(month.reserved_investment, amount);
-  return rebalance(month, {
-    bank_balance: -amount,
-    reserved_investment: -reservedDeduction,
-  });
+  const newReserved = Math.max(month.reserved_investment, amount);
+  return {
+    bank_balance: month.bank_balance,
+    reserved_fixed_expenses: month.reserved_fixed_expenses,
+    reserved_investment: newReserved,
+    available_balance: computeAvailable(
+      month.bank_balance,
+      month.reserved_fixed_expenses,
+      newReserved
+    ),
+  };
 }
 
 /** Sinal do efeito de um ajuste de saldo sobre o banco. */

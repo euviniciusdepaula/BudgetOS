@@ -32,4 +32,18 @@ export const investmentRepository = {
     if (error) throw new Error(error.message);
     return data;
   },
+
+  async removeByMonthAndAmountAndDescription(
+    monthId: string,
+    amount: number,
+    description: string
+  ): Promise<void> {
+    const { error } = await createClient()
+      .from("investments")
+      .delete()
+      .eq("month_id", monthId)
+      .eq("amount", amount)
+      .eq("description", description);
+    if (error) throw new Error(error.message);
+  },
 };

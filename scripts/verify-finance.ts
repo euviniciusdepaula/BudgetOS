@@ -85,17 +85,17 @@ expectEqual(
   2948
 );
 
-// Aporte efetivado de 1500 (dentro da meta reservada): banco cai, reserva zera, disponível NÃO muda.
+// Aporte efetivado de 1500 (dentro da meta reservada): banco NÃO cai, reserva se mantém, disponível NÃO muda.
 const afterInvest = applyInvestment(afterUnpaid, 1500);
-expectEqual("aporte: saldo bancário", afterInvest.bank_balance, 4448);
-expectEqual("aporte: reserva investimento", afterInvest.reserved_investment, 0); // reserva zerou
-expectEqual("aporte: disponível inalterado", afterInvest.available_balance, 2648); // disponível continua 2648
+expectEqual("aporte: saldo bancário", afterInvest.bank_balance, 5948);
+expectEqual("aporte: reserva investimento", afterInvest.reserved_investment, 1500);
+expectEqual("aporte: disponível inalterado", afterInvest.available_balance, 2648);
 
-// Aporte excedente de 500 (investimento manual/extra): banco cai, reserva continua 0, disponível cai por 500.
-const afterExcess = applyInvestment(afterInvest, 500);
-expectEqual("excesso: saldo bancário", afterExcess.bank_balance, 3948);
-expectEqual("excesso: reserva investimento", afterExcess.reserved_investment, 0); // continua 0
-expectEqual("excesso: disponível cai", afterExcess.available_balance, 2148); // reduziu de 2648 para 2148
+// Aporte excedente de 2000 (meta era 1500): banco NÃO cai, reserva vira 2000, disponível cai por 500.
+const afterExcess = applyInvestment(afterUnpaid, 2000);
+expectEqual("excesso: saldo bancário", afterExcess.bank_balance, 5948);
+expectEqual("excesso: reserva investimento", afterExcess.reserved_investment, 2000);
+expectEqual("excesso: disponível cai", afterExcess.available_balance, 2148);
 
 // Arredondamento: 0.1 + 0.2 não pode virar 0.30000000000000004.
 const rounding = applyExpense(

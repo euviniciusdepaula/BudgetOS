@@ -6,6 +6,7 @@ import { budgetRepository } from "./repositories/budget-repository";
 import { monthRepository } from "./repositories/month-repository";
 import { transactionRepository } from "./repositories/transaction-repository";
 import { investmentRepository } from "./repositories/investment-repository";
+import { vaultRepository } from "./repositories/vault-repository";
 
 export interface RegisterExpenseInput {
   month: Month;
@@ -85,7 +86,7 @@ export const transactionService = {
     return transaction;
   },
 
-  /** Registra um aporte de investimento: entra nas transações e debita do banco + reserva. */
+  /** Registra um aporte de investimento: entra nas transações e debita da reserva, mantendo saldo bancário. */
   async registerInvestment(input: {
     month: Month;
     amount: number;
@@ -112,10 +113,17 @@ export const transactionService = {
       description: input.description || "Aporte de Investimento",
     });
 
-    await monthRepository.update(
-      input.month.id,
-      applyInvestment(input.month, input.amount)
-    );
+    const vault = await vaultRepository.find();
+    const goal = vault?.investment_goal ?? 0;
+
+    const allInvestments = await investmentRepository.listByMonth(input.month.id);
+    const totalInvested = allInvestments.reduce((sum, i) => sum + i.amount, 0);
+
+    const newReserved = Math.max(goal, totalInvested);
+    await monthRepository.update(input.month.id, {
+      reserved_investment: newReserved,
+      available_balance: round2(input.month.bank_balance - input.month.reserved_fixed_expenses - newReserved)
+    });
 
     return transaction;
   },
@@ -155,13 +163,23 @@ export const transactionService = {
         applyExpense(month, tx.amount)
       );
     } else if (tx.type === "investment") {
-      await monthRepository.update(
+      await investmentRepository.removeByMonthAndAmountAndDescription(
         month.id,
-        {
-          bank_balance: round2(month.bank_balance + tx.amount),
-          reserved_investment: round2(month.reserved_investment + tx.amount),
-        }
+        tx.amount,
+        tx.description
       );
+
+      const vault = await vaultRepository.find();
+      const goal = vault?.investment_goal ?? 0;
+
+      const allInvestments = await investmentRepository.listByMonth(month.id);
+      const totalInvested = allInvestments.reduce((sum, i) => sum + i.amount, 0);
+
+      const newReserved = Math.max(goal, totalInvested);
+      await monthRepository.update(month.id, {
+        reserved_investment: newReserved,
+        available_balance: round2(month.bank_balance - month.reserved_fixed_expenses - newReserved)
+      });
     }
 
     // 3. Deletar a transação
@@ -212,13 +230,23 @@ export const transactionService = {
         applyExpense(currentMonthState, tx.amount)
       );
     } else if (tx.type === "investment") {
-      currentMonthState = await monthRepository.update(
+      await investmentRepository.removeByMonthAndAmountAndDescription(
         month.id,
-        {
-          bank_balance: round2(currentMonthState.bank_balance + tx.amount),
-          reserved_investment: round2(currentMonthState.reserved_investment + tx.amount),
-        }
+        tx.amount,
+        tx.description
       );
+
+      const vault = await vaultRepository.find();
+      const goal = vault?.investment_goal ?? 0;
+
+      const allInvestments = await investmentRepository.listByMonth(month.id);
+      const totalInvested = allInvestments.reduce((sum, i) => sum + i.amount, 0);
+
+      const newReserved = Math.max(goal, totalInvested);
+      currentMonthState = await monthRepository.update(month.id, {
+        reserved_investment: newReserved,
+        available_balance: round2(currentMonthState.bank_balance - currentMonthState.reserved_fixed_expenses - newReserved)
+      });
     }
 
     // 2. Aplicar o impacto da nova transação
@@ -246,13 +274,23 @@ export const transactionService = {
         applyIncome(currentMonthState, input.amount)
       );
     } else if (tx.type === "investment") {
-      currentMonthState = await monthRepository.update(
-        month.id,
-        {
-          bank_balance: round2(currentMonthState.bank_balance - input.amount),
-          reserved_investment: round2(currentMonthState.reserved_investment - input.amount),
-        }
-      );
+      await investmentRepository.create({
+        month_id: month.id,
+        amount: input.amount,
+        description: input.description,
+      });
+
+      const vault = await vaultRepository.find();
+      const goal = vault?.investment_goal ?? 0;
+
+      const allInvestments = await investmentRepository.listByMonth(month.id);
+      const totalInvested = allInvestments.reduce((sum, i) => sum + i.amount, 0);
+
+      const newReserved = Math.max(goal, totalInvested);
+      currentMonthState = await monthRepository.update(month.id, {
+        reserved_investment: newReserved,
+        available_balance: round2(currentMonthState.bank_balance - currentMonthState.reserved_fixed_expenses - newReserved)
+      });
     }
 
     // 3. Salvar as alterações da transação
