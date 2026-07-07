@@ -39,6 +39,7 @@ export const fixedExpenseService = {
    * Marca/desmarca um gasto fixo como pago no mês.
    * O pagamento sai do saldo bancário E da reserva de gastos fixos —
    * o Dinheiro Disponível não muda (já estava reservado).
+   * Recalcula a reserva baseando-se no estado real do banco de dados para evitar descompassos.
    */
   async setPaid(
     month: Month,
@@ -57,10 +58,28 @@ export const fixedExpenseService = {
       await paymentRepository.remove(month.id, expense.id);
     }
 
-    await monthRepository.update(
-      month.id,
-      applyFixedExpensePayment(month, expense.amount, paid)
-    );
+    const signed = paid ? -expense.amount : expense.amount;
+    const newBankBalance = round2(month.bank_balance + signed);
+
+    const expenses = await fixedExpenseRepository.list();
+    const payments = await paymentRepository.listByMonth(month.id);
+    const paidIds = new Set(payments.map((p) => p.fixed_expense_id));
+
+    const unpaidTotal = expenses
+      .filter((e) => e.active && !paidIds.has(e.id))
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const roundedUnpaid = round2(unpaidTotal);
+
+    await monthRepository.update(month.id, {
+      bank_balance: newBankBalance,
+      reserved_fixed_expenses: roundedUnpaid,
+      available_balance: computeAvailable(
+        newBankBalance,
+        roundedUnpaid,
+        month.reserved_investment
+      ),
+    });
   },
 
   async create(input: FixedExpenseInsert, currentMonthId: string | null): Promise<FixedExpense> {
