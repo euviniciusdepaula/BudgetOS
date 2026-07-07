@@ -166,7 +166,7 @@ export const transactionService = {
       await investmentRepository.removeByMonthAndAmountAndDescription(
         month.id,
         tx.amount,
-        tx.description
+        tx.description ?? ""
       );
 
       const vault = await vaultRepository.find();
@@ -233,7 +233,7 @@ export const transactionService = {
       await investmentRepository.removeByMonthAndAmountAndDescription(
         month.id,
         tx.amount,
-        tx.description
+        tx.description ?? ""
       );
 
       const vault = await vaultRepository.find();
