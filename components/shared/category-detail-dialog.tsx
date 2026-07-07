@@ -40,7 +40,9 @@ export function CategoryDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-6 overflow-hidden">
+      <DialogContent className="fixed bottom-0 top-auto translate-y-0 left-0 right-0 translate-x-0 max-w-none rounded-t-[24px] border-x-0 border-b-0 h-[85vh] sm:bottom-auto sm:top-[50%] sm:translate-y-[-50%] sm:left-[50%] sm:translate-x-[-50%] sm:max-w-md sm:rounded-2xl sm:border flex flex-col p-6 overflow-hidden">
+        {/* Drag handle para mobile */}
+        <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 shrink-0 mb-2 block sm:hidden" />
         {/* Header with Emoji, Name, Edit & Delete */}
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-border/40">
           <div className="flex items-center gap-3">

@@ -19,7 +19,7 @@ export function CategoryCards({ budgets, hidden, onCategoryClick }: CategoryCard
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2 md:gap-4 md:grid-cols-2 xl:grid-cols-3">
       {budgets.map((budget) => {
         const limit = budget.current_limit;
         const spent = budget.spent;

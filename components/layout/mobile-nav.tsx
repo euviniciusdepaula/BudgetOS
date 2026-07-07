@@ -17,12 +17,13 @@ import {
   Settings,
   X,
   PlusCircle,
+  PiggyBank,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentMonth } from "@/hooks/use-current-month";
 import { useBudgets } from "@/hooks/use-budgets";
 import { ExpenseDialog } from "@/features/home/components/expense-dialog";
-import { CategoryDialog } from "@/components/shared/category-dialog";
+import { InvestmentDialog } from "@/components/shared/investment-dialog";
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -37,18 +38,18 @@ export function MobileNav() {
 
   // Modal dialog states
   const [expenseOpen, setExpenseOpen] = useState(false);
-  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [investmentOpen, setInvestmentOpen] = useState(false);
 
   const { data: month } = useCurrentMonth();
   const { data: budgets } = useBudgets(month?.id);
 
+  // Main tabs: Hoje, Categorias, (+), Histórico, Mais
   const activeTabs = [
     { label: "Hoje", href: "/", icon: Wallet },
     { label: "Categorias", href: "/categorias", icon: Tags },
   ];
 
   const extraItems = [
-    { label: "Histórico", href: "/historico", icon: History },
     { label: "Gastos Fixos", href: "/gastos-fixos", icon: Repeat },
     { label: "Investimentos", href: "/investimentos", icon: TrendingUp },
     { label: "Insights", href: "/insights", icon: Lightbulb },
@@ -86,19 +87,19 @@ export function MobileNav() {
           <Plus className="size-6" />
         </button>
 
-        {/* Simulações */}
+        {/* Histórico */}
         {(() => {
-          const active = isActive(pathname, "/simulacoes");
+          const active = isActive(pathname, "/historico");
           return (
             <Link
-              href="/simulacoes"
+              href="/historico"
               className={cn(
                 "flex flex-col items-center justify-center gap-1 w-12 h-12 transition-all active:scale-95",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Sparkles className="size-5" />
-              <span className="text-[9px] font-semibold tracking-wide uppercase">Simular</span>
+              <History className="size-5" />
+              <span className="text-[9px] font-semibold tracking-wide uppercase">Histórico</span>
             </Link>
           );
         })()}
@@ -137,13 +138,14 @@ export function MobileNav() {
             >
               <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 shrink-0" />
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-base text-foreground">Ações Rápidas</h3>
+                <h3 className="font-semibold text-base text-foreground">Novo Lançamento</h3>
                 <button onClick={() => setPlusOpen(false)} className="text-muted-foreground p-1 hover:text-foreground">
                   <X className="size-5" />
                 </button>
               </div>
 
               <div className="space-y-2 pt-2">
+                {/* Novo gasto */}
                 <button
                   onClick={() => {
                     setPlusOpen(false);
@@ -157,6 +159,21 @@ export function MobileNav() {
                   Novo gasto
                 </button>
 
+                {/* Registrar aporte */}
+                <button
+                  onClick={() => {
+                    setPlusOpen(false);
+                    setInvestmentOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-[16px] border border-border/40 bg-card p-4 font-semibold text-sm hover:bg-accent/40 active:scale-98 transition-all"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <PiggyBank className="size-4" />
+                  </span>
+                  Registrar aporte
+                </button>
+
+                {/* Simular compra */}
                 <button
                   onClick={() => {
                     setPlusOpen(false);
@@ -164,23 +181,10 @@ export function MobileNav() {
                   }}
                   className="flex w-full items-center gap-3 rounded-[16px] border border-border/40 bg-card p-4 font-semibold text-sm hover:bg-accent/40 active:scale-98 transition-all"
                 >
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
                     <Sparkles className="size-4" />
                   </span>
                   Simular compra
-                </button>
-
-                <button
-                  onClick={() => {
-                    setPlusOpen(false);
-                    setCategoryOpen(true);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-[16px] border border-border/40 bg-card p-4 font-semibold text-sm hover:bg-accent/40 active:scale-98 transition-all"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
-                    <Tags className="size-4" />
-                  </span>
-                  Nova categoria
                 </button>
               </div>
             </motion.div>
@@ -240,19 +244,20 @@ export function MobileNav() {
 
       {/* Global Action Modals */}
       {month && (
-        <ExpenseDialog
-          open={expenseOpen}
-          onOpenChange={setExpenseOpen}
-          month={month}
-          categories={(budgets ?? []).map((b) => b.category)}
-        />
+        <>
+          <ExpenseDialog
+            open={expenseOpen}
+            onOpenChange={setExpenseOpen}
+            month={month}
+            categories={(budgets ?? []).map((b) => b.category)}
+          />
+          <InvestmentDialog
+            open={investmentOpen}
+            onOpenChange={setInvestmentOpen}
+            month={month}
+          />
+        </>
       )}
-
-      <CategoryDialog
-        open={categoryOpen}
-        onOpenChange={setCategoryOpen}
-        category={null}
-      />
     </>
   );
 }

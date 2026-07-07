@@ -293,7 +293,7 @@ export function HomeView() {
               Limites de controle — não reservam dinheiro.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="hidden md:flex gap-2">
             <Button size="sm" variant="outline" onClick={() => setInvestmentOpen(true)}>
               <PiggyBank className="size-4 mr-1.5" />
               Registrar aporte

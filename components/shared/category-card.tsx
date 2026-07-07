@@ -109,51 +109,48 @@ export function CategoryCard({
       <Card
         onClick={onClick}
         className={cn(
-          "group cursor-pointer overflow-hidden border-border/40 bg-card select-none block md:hidden rounded-[20px] transition-all active:scale-[0.98]",
+          "group cursor-pointer overflow-hidden border-border/40 bg-card select-none block md:hidden rounded-[16px] transition-all active:scale-[0.98]",
           over && "border-rose-500/20 bg-rose-500/[0.02]"
         )}
       >
-        <CardContent className="p-4 space-y-2.5">
-          {/* Top row: Emoji & Name */}
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-lg shrink-0 leading-none">{category.emoji}</span>
-            <span className="font-bold text-[13px] tracking-tight truncate text-foreground/90">
-              {category.name}
-            </span>
-          </div>
-
-          {/* Gasto / Limite */}
-          <div className="text-[10px] text-muted-foreground font-medium tabular-nums">
-            <span className={cn("font-bold", over ? "text-rose-400" : "text-foreground/90")}>
-              {displaySpent}
-            </span>
-            <span className="text-muted-foreground/60"> / </span>
-            <span>{displayLimit}</span>
-          </div>
-
-          {/* Progress Bar & Percentage */}
-          <div className="space-y-1">
-            <Progress
-              value={Math.min(ratio * 100, 100)}
-              className="h-1.5 bg-accent"
-            />
-            <div className="flex justify-end text-[9px] text-muted-foreground font-bold leading-none">
-              <span className={cn("tabular-nums", over && "text-rose-400")}>
-                {percent}%
+        <CardContent className="p-3 space-y-1.5">
+          {/* Row 1: Emoji + Name on Left | Restante on Right */}
+          <div className="flex items-center justify-between min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base shrink-0 leading-none">{category.emoji}</span>
+              <span className="font-bold text-xs truncate text-foreground/90">
+                {category.name}
               </span>
+            </div>
+            <div className="shrink-0 text-right">
+              <span
+                className={cn(
+                  "font-bold text-xs tabular-nums",
+                  over ? "text-rose-400 font-extrabold" : remaining === 0 ? "text-muted-foreground" : "text-primary"
+                )}
+              >
+                {displayRemaining}
+              </span>
+              <span className="text-[8px] text-muted-foreground block leading-none mt-0.5">restante</span>
             </div>
           </div>
 
-          {/* Bottom row: Restante */}
-          <div className="flex justify-between items-center text-[10px] border-t border-border/10 pt-1.5">
-            <span className="text-muted-foreground font-medium">Restante:</span>
-            <span
-              className={cn(
-                "font-bold tabular-nums",
-                over ? "text-rose-400" : remaining === 0 ? "text-muted-foreground" : "text-primary"
-              )}
-            >
-              {displayRemaining}
+          {/* Row 2: Progress Bar */}
+          <Progress
+            value={Math.min(ratio * 100, 100)}
+            className="h-1.5 bg-accent"
+          />
+
+          {/* Row 3: spent / limit on Left | percent on Right */}
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground leading-none">
+            <div className="tabular-nums">
+              <span className={cn("font-medium", over ? "text-rose-400" : "text-foreground/80")}>
+                {displaySpent}
+              </span>
+              <span className="text-muted-foreground/55"> / {displayLimit}</span>
+            </div>
+            <span className={cn("font-bold tabular-nums", over && "text-rose-400")}>
+              {percent}%
             </span>
           </div>
         </CardContent>
