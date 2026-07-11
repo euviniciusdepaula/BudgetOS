@@ -102,8 +102,10 @@ function TransactionRow({
             transaction.category?.name ||
             (isIncome ? "Receita" : isInvestment ? "Aporte de Investimento" : "Lançamento")}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {transaction.category?.name ?? (isInvestment ? "Investimento" : "Sem categoria")}
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+          <span>{transaction.category?.name ?? (isInvestment ? "Investimento" : "Sem categoria")}</span>
+          <span>•</span>
+          <span className="tabular-nums">{formatDate(`${transaction.date}T00:00:00`)}</span>
         </p>
       </div>
       <div className="flex items-center gap-4">
